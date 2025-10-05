@@ -29,4 +29,29 @@ color: hsl(0,0%,30%);
   border-radius: 5px;
   cursor: pointer;
   border: none;
+} 
+
+
+/* Couter */
+.container{
+  text-align: center;
+  margin-top: 50px;
+  height: 70vh;
+  width: 100vw;
+  background-color: bisque;
 }
+.count{
+  font-size: 20em;
+  font-weight: bold;
+  margin-top: 0;
+  margin-bottom: 50px;
+}
+.increment, .decrement, .reset{
+  font-size: 2em;
+  background-color: aqua;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: none;
+  margin: 5px;
+} 
