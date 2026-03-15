@@ -1,15 +1,28 @@
-import 'package:flutter/material.dart';
-import 'package:tutoapp/pages/first_page.dart';
+/* NAVIGATION */
 
-class SecondPage extends StatelessWidget {
-  const SecondPage({super.key});
+// import 'package:flutter/material.dart';
+// import 'package:tutoapp/pages/first_page.dart';
 
-  @override
-@override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.blueGrey,
-      body: Center(child: Text("settingspage"),),
-    );
-  }
-}
+// class SecondPage extends StatelessWidget {
+//   const SecondPage({super.key});
+
+//   @override
+// @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.blueGrey,
+//       body: Center(child: Text("settingspage"),),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+

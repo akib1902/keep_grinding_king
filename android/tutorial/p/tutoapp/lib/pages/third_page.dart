@@ -1,13 +1,27 @@
-import 'package:flutter/material.dart';
+/* NAVIGATION */
 
-class ThirdPage extends StatelessWidget {
-  const ThirdPage({super.key});
+// import 'package:flutter/material.dart';
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.blue,
-      body: Center(child: Text("profile page"),),
-    );
-  }
-}
+// class ThirdPage extends StatelessWidget {
+//   const ThirdPage({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.blue,
+//       body: Center(child: Text("profile page"),),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+

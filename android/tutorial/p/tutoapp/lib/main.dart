@@ -135,20 +135,81 @@
 
 
 
+/*  N A V I G A T I O N   */
+
+// import 'package:flutter/material.dart';
+// import 'package:tutoapp/pages/first_page.dart';
+// void main(){
+//   runApp(MyApp());
+// }
+
+// class MyApp extends StatelessWidget{
+//   const MyApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       home: FirstPage(),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+// STATELESS/STATEFULL
+
+// import 'package:flutter/material.dart';
+
+// import 'package:tutoapp/pages/first_page.dart';void main(){
+//   runApp(const MyApp());
+// }
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+
+//     return MaterialApp(
+//       home: Counterapp(),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+//   USER INPUT
 
 import 'package:flutter/material.dart';
 import 'package:tutoapp/pages/first_page.dart';
 void main(){
-  runApp(MyApp());
+  runApp(const MyApp());
 }
-
-class MyApp extends StatelessWidget{
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       home: FirstPage(),
     );
   }

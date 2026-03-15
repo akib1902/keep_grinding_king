@@ -1,13 +1,27 @@
-import 'package:flutter/material.dart';
+/*   NAVIGATION */
 
-class FourthPage extends StatelessWidget {
-  const FourthPage({super.key});
+// import 'package:flutter/material.dart';
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.red,
-      body: Center(child: Text("Home page"),),
-    );
-  }
-}
+// class FourthPage extends StatelessWidget {
+//   const FourthPage({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Colors.red,
+//       body: Center(child: Text("Home page"),),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
