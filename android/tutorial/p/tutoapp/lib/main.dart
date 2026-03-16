@@ -199,18 +199,47 @@
 
 //   USER INPUT
 
+// import 'package:flutter/material.dart';
+// import 'package:tutoapp/pages/first_page.dart';
+// void main(){
+//   runApp(const MyApp());
+// }
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       home: FirstPage(),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+// TODO APP
 import 'package:flutter/material.dart';
-import 'package:tutoapp/pages/first_page.dart';
+import 'package:tutoapp/pages/homePage.dart';
 void main(){
-  runApp(const MyApp());
+  runApp(const ToDoApp());
 }
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+
+class ToDoApp extends StatelessWidget {
+  const ToDoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: FirstPage(),
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Homepage(),
     );
   }
 }
