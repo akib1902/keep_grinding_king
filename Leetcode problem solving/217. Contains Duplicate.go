@@ -1,12 +1,13 @@
 //a go program array nums checks if any value shows more than one time.
 //outputs true if same value more than once else false.
+//make it 0ms runtime
 func containsDuplicate(nums []int) bool {
-    seen := make(map[int]bool)
-    for _, num := range nums {
-        if seen[num] {
+    slices.Sort(nums)
+    for i := 1; i < len(nums); i++ {
+        if nums[i] == nums[i-1] {
             return true
         }
-        seen[num] = true
     }
+    
     return false
 }
