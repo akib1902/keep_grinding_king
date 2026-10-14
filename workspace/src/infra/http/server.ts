@@ -61,7 +61,8 @@ export function buildServer(deps: ServerDeps): ServerHandle {
   const devTokensEnabled = deps.devTokenEnabled ?? config.auth.enableDevTokens;
 
   const app = Fastify({
-    disableRequestLogging: true,
+    // No Fastify logger instance: the application logger is injected and used
+    // explicitly, with a correlation id per request.
     bodyLimit: 256 * 1024,
     trustProxy: false,
     genReqId: () => randomUUID(),
@@ -385,7 +386,7 @@ export function buildServer(deps: ServerDeps): ServerHandle {
     await assertRunReadable(run, principal);
     routeLogger(request).debug({ runId: run.id }, 'event stream opened');
     await streamRunEvents(
-      { store, logger: routeLogger(request), pollIntervalMs: 500, heartbeatMs: 15_000 },
+      { store, logger: routeLogger(request), ...config.api.sse },
       request,
       reply,
       run.id,

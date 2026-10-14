@@ -6,7 +6,6 @@ import { prepareTestEnv, testConfig } from '../helpers/env.js';
 
 prepareTestEnv();
 const config = testConfig();
-process.env.QUEUE_PREFIX = process.env.QUEUE_PREFIX ?? 'rfa-test';
 
 if (process.env.TEST_VERBOSE === 'true') {
   console.info(

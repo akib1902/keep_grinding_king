@@ -74,17 +74,35 @@ export class WorkflowService {
       return { outcome: 'AWAITING_APPROVAL' };
     }
 
-    // One writer per attempt: a second delivery of the *same* attempt is a no-op,
-    // and a different attempt may only start once the run is PENDING.
-    if (run.status === 'RUNNING' && run.attemptId !== job.attemptId) {
+    // Exactly one execution per attempt attempt id.
+    //
+    // A run that is RUNNING is owned by an attempt that is currently executing:
+    // either this very delivery arrived twice, or a stale delivery for an older
+    // attempt surfaced late. Neither may start work. Recovery is what re-enters a
+    // run — and it does so by returning the run to PENDING with a *fresh* attempt
+    // id, so a legitimate retry is never blocked by this guard.
+    if (run.status === 'RUNNING') {
       await recordStep(store, {
         runId: run.id,
         attemptId: job.attemptId,
         stepType: 'RECOVERY_REQUEUE',
         status: 'SKIPPED',
-        summary: `Attempt ${run.attemptId} is already in flight; duplicate start ignored`,
+        summary: `Run is already owned by in-flight attempt ${run.attemptId ?? 'unknown'}; duplicate start ignored`,
+        payload: { deliveredAttemptId: job.attemptId, inFlightAttemptId: run.attemptId, reason: job.reason },
       });
       return { outcome: 'ATTEMPT_IN_FLIGHT' };
+    }
+
+    // Crash-window idempotency.
+    //
+    // A worker can die after the proposal/pause was recorded but before the run's
+    // state change or completion was committed. Re-running the agent then would
+    // re-research the same window, create a conflicting proposal the policy would
+    // have to deny, and leave an orphaned approval behind. Instead, the durable
+    // outcome is honoured (BUS-RULE-07 applied to the run itself).
+    if (run.status === 'PENDING') {
+      const recovered = await this.#recoverFromRecordedOutcome(run, job);
+      if (recovered) return recovered;
     }
 
     const startedAt = clock.now();
@@ -318,6 +336,122 @@ export class WorkflowService {
 
     logger.info({ runId: run.id, findings: report.findings.length }, 'run completed');
     return { outcome: 'COMPLETED' };
+  }
+
+  /**
+   * Detects a durable outcome left by an interrupted attempt and finishes the
+   * workflow from it: a settled proposal completes the run, and a proposal still
+   * awaiting a decision re-establishes the pause.
+   *
+   * Returns null when there is nothing to recover, in which case the attempt runs
+   * normally.
+   */
+  async #recoverFromRecordedOutcome(run: RunRecord, job: RunJobPayload): Promise<{ outcome: string } | null> {
+    const { store, clock, logger } = this.#deps;
+    const proposals = await store.proposals.listByRun(run.id);
+    if (proposals.length === 0) return null;
+
+    const settled = proposals.find((proposal) => proposal.status === 'SETTLED');
+    if (settled) {
+      const settlement = await store.settlements.findByProposalId(settled.id);
+      const draft = await this.#latestReportStep(run.id);
+      const report: ResearchReport = {
+        ...(draft ?? this.#emptyReport(run)),
+        ...(settlement && settlement.ledgerEntryId
+          ? {
+              settlement: {
+                operationId: settlement.operationId,
+                status: 'COMMITTED' as const,
+                ledgerEntryId: settlement.ledgerEntryId,
+                amountMinor: settled.amountMinor,
+                currency: settled.currency,
+              },
+            }
+          : {}),
+      };
+
+      await store.transaction(async (tx) => {
+        await recordStep(tx, {
+          runId: run.id,
+          attemptId: job.attemptId,
+          stepType: 'RECOVERY_REQUEUE',
+          status: 'SUCCEEDED',
+          summary: `Recovered run from its settled proposal ${settled.id}`,
+          payload: { proposalId: settled.id, operationId: settlement?.operationId ?? null },
+        });
+        const updated = await tx.runs.transition({
+          id: run.id,
+          expectedVersion: run.version,
+          to: 'COMPLETED',
+          patch: { completedAt: clock.now(), result: { report, generatedAt: clock.now().toISOString() } },
+        });
+        if (!updated) throw conflict(ErrorCode.CONCURRENT_MODIFICATION, 'Run changed while recovering its outcome.');
+        await emitEvent(tx, {
+          runId: run.id,
+          eventType: 'run.completed',
+          payload: { runId: run.id, note: 'completed from recorded settlement after an interrupted attempt' },
+        });
+      });
+      logger.warn({ runId: run.id, proposalId: settled.id }, 'run completed from its recorded settlement');
+      return { outcome: 'RECOVERED_SETTLED' };
+    }
+
+    const awaiting = proposals.find((proposal) => proposal.status === 'REQUIRES_APPROVAL');
+    if (awaiting) {
+      const approval = await store.approvals.findByProposalId(awaiting.id);
+      if (approval?.status === 'PENDING') {
+        await store.transaction(async (tx) => {
+          const updated = await tx.runs.transition({
+            id: run.id,
+            expectedVersion: run.version,
+            to: 'REQUIRES_HUMAN_APPROVAL',
+            patch: { heartbeatAt: clock.now() },
+          });
+          if (!updated) throw conflict(ErrorCode.CONCURRENT_MODIFICATION, 'Run changed while re-establishing the pause.');
+          await emitEvent(tx, {
+            runId: run.id,
+            eventType: 'run.awaiting_approval',
+            payload: { runId: run.id, proposalId: awaiting.id, approvalId: approval.id, recovered: true },
+          });
+          await recordStep(tx, {
+            runId: run.id,
+            attemptId: job.attemptId,
+            stepType: 'RECOVERY_REQUEUE',
+            status: 'SUCCEEDED',
+            summary: 'Re-established the approval pause recorded by an interrupted attempt',
+            payload: { proposalId: awaiting.id, approvalId: approval.id },
+          });
+        });
+        logger.warn({ runId: run.id, approvalId: approval.id }, 'approval pause re-established after an interrupted attempt');
+        return { outcome: 'AWAITING_APPROVAL' };
+      }
+    }
+
+    return null;
+  }
+
+  /** Report skeleton used when a run is completed from recorded state only. */
+  #emptyReport(run: RunRecord): ResearchReport {
+    return {
+      taskType: run.taskType,
+      window: { from: run.request.from, to: run.request.to },
+      transactionCount: 0,
+      totalSpendMinor: 0,
+      currency: run.request.currency,
+      ruleVersion: 'unknown',
+      findings: [],
+      interpretation: {
+        model: 'not-run',
+        provider: this.#deps.providerName,
+        summary: 'The run was completed from its recorded outcome after an interrupted attempt; no further model call was made.',
+        highlightedFindingIds: [],
+      },
+      limitations: [
+        'This report was reconstructed from durable records after an interrupted attempt.',
+        'Settlement in this MVP is simulated: no real funds are transferred.',
+      ],
+      proposalIds: [],
+    };
   }
 
   // -------------------------------------------------------------------------

@@ -1,0 +1,69 @@
+
+> resilient-financial-agent@1.0.0 demo
+> tsx scripts/demo.ts
+
+Resilient Multi-Step Financial Research & Settlement Agent — live demo
+API: http://127.0.0.1:3100
+Provider: mock   Policy: v1   Approval threshold: 500 USD
+All financial data in this demonstration is synthetic and all settlement is simulated.
+
+Readiness before starting: {"database":"ok","redis":"ok"}
+
+Analyst:  analyst@example.test (ANALYST)
+Approver: approver@example.test (APPROVER) — a different person, as separation of duties requires
+
+[1m1. Submitting the research request (POST /api/runs)[0m
+   HTTP 202 — runId 60ed5e92-6d05-4634-b68e-74b68e2ec7a6 (status PENDING)
+   The HTTP response did not wait for execution, as required.
+   Idempotent replay returned HTTP 202 with the same runId: yes
+
+[1m2. Streaming progress from GET /api/tasks/:id/stream[0m
+   Run reached status: COMPLETED
+
+[1m3. Inspecting the execution history and the refund proposal[0m
+   #1 RUN_ACCEPTED        SUCCEEDED Run accepted and queued for asynchronous execution
+   #2 ATTEMPT_STARTED     SUCCEEDED Attempt started with a 30000ms deadline and a 6-tool budget
+   #3 MODEL_TURN          SUCCEEDED Model requested 1 tool call(s)
+   #4 TOOL_CALL           SUCCEEDED Tool list_transactions succeeded
+   #5 MODEL_TURN          SUCCEEDED Model requested 1 tool call(s)
+   #6 TOOL_CALL           SUCCEEDED Tool detect_spend_anomalies succeeded
+   #7 MODEL_TURN          SUCCEEDED Model requested 1 tool call(s)
+   #8 POLICY_EVALUATION   FAILED    Policy v1 → POLICY_DENIED
+   #9 TOOL_CALL           SUCCEEDED Tool create_refund_proposal succeeded
+   #10 MODEL_TURN          SUCCEEDED Model requested 1 tool call(s)
+   #11 POLICY_EVALUATION   FAILED    Policy v1 → POLICY_DENIED
+   #12 TOOL_CALL           SUCCEEDED Tool create_refund_proposal succeeded
+   No refund proposal was created for this window.
+
+[1m5. Final run state: COMPLETED[0m
+   Window {"to":"2026-09-30","from":"2026-07-01"} — 12 transactions, rule version v1
+   • ANOM-001 Duplicate invoice reference — refund eligible up to 2450 USD
+   • ANOM-002 Repeated identical charge — refund eligible up to 3750 USD
+   • ANOM-003 Transaction far above the period median — not refund eligible
+
+   No settlement: no refund was authorised for this run.
+
+   Interpretation (model narrative, separate from the facts above):
+   Deterministic rules identified 3 items of interest in the analysed window.
+   - Duplicate invoice reference (ANOM-001): Invoice INV-2026-7100 from Northwind Office Supplies appears 2 times within the analysed period.
+   - Repeated identical charge (ANOM-002): Helios Cloud Services charged USD 1875.00 3 times within 7 days.
+   - Transaction far above the period median (ANOM-003): Vertex Consulting Group charged USD 14500.00 on 2026-08-12T09:00:00.000Z.
+   A refund proposal was rejected by the deterministic policy engine (POL-005, POL-006).
+   These interpretations are based only on the records retrieved; no anomaly is asserted to be fraud.
+
+   Limitations recorded with the report:
+   - Analysis is limited to the synthetic dataset supplied with this deployment.
+   - Findings come from the versioned deterministic rules and are not a determination of fraud.
+   - A proposed refund was denied by policy and was therefore not settled.
+   - At least one proposed refund was denied by the deterministic policy engine and was not settled.
+   - Settlement in this MVP is simulated: no real funds are transferred.
+
+[1m6. Audit trail (GET /api/runs/:id/audit)[0m
+   2026-10-14T16:51:56.680Z  USER    run.submitted
+   2026-10-14T16:51:57.108Z  AGENT   refund_proposal.denied_by_policy
+   2026-10-14T16:51:57.195Z  AGENT   refund_proposal.denied_by_policy
+   2026-10-14T16:51:57.327Z  SYSTEM  run.completed
+
+SSE: received 5 durable events (last: run.completed) for run 60ed5e92-6d05-4634-b68e-74b68e2ec7a6.
+
+Demo complete. All data was synthetic and all settlement was simulated.

@@ -19,6 +19,7 @@ import { asLoggerPort, createLogger } from '../../src/infra/logging/logger.js';
 import { MockLlmProvider, type MockProviderFaults } from '../../src/infra/llm/mock-provider.js';
 import { PrismaStore } from '../../src/infra/prisma/store.js';
 import { seed } from '../../scripts/seed.js';
+import { toRunJob } from '../../src/app/services/outbox-dispatcher.js';
 import type { AppConfig } from '../../src/config/env.js';
 import type { Clock, LlmProviderPort, RunRecord, TokenUsage } from '../../src/app/ports.js';
 import { testConfig } from './env.js';
@@ -36,6 +37,10 @@ export interface TestSystem {
   /** Runs one recovery cycle synchronously. */
   recover(): Promise<void>;
   stop(): Promise<void>;
+  /** Stops only the queue consumer, leaving the API and database untouched. */
+  stopWorker(): Promise<void>;
+  /** Starts a fresh consumer on the same queue, simulating a worker restart. */
+  startWorkerOnly(): Promise<void>;
 }
 
 export interface StartSystemOptions {
@@ -44,6 +49,12 @@ export interface StartSystemOptions {
   clock?: Clock;
   /** Set false to start the BullMQ consumer lazily (used by the duplicate-delivery test). */
   startWorker?: boolean;
+  /**
+   * Start the outbox dispatcher and recovery sweeps as background loops, mirroring
+   * the worker process. Off by default so unit-style tests can drive both cycles
+   * deterministically; e2e tests turn them on to exercise the deployed topology.
+   */
+  startLoops?: boolean;
   configOverrides?: Record<string, string>;
 }
 
@@ -65,7 +76,7 @@ export async function startTestSystem(options: StartSystemOptions = {}): Promise
     backoffMs: config.redis.backoffMs,
   };
 
-  const worker =
+  let worker =
     options.startWorker === false
       ? ({ worker: null, close: async () => undefined } as unknown as RunWorkerHandle)
       : createRunWorker({
@@ -76,6 +87,20 @@ export async function startTestSystem(options: StartSystemOptions = {}): Promise
             await services.workflow.executeRun(payload);
           },
         });
+
+  const timers: NodeJS.Timeout[] = [];
+  if (options.startLoops) {
+    timers.push(
+      setInterval(() => {
+        void services.dispatcher.dispatchOnce().catch(() => undefined);
+      }, 100),
+    );
+    timers.push(
+      setInterval(() => {
+        void services.recovery.runOnce().catch(() => undefined);
+      }, 250),
+    );
+  }
 
   return {
     app: server.app,
@@ -91,10 +116,26 @@ export async function startTestSystem(options: StartSystemOptions = {}): Promise
       await services.recovery.runOnce();
     },
     stop: async () => {
+      for (const timer of timers) clearInterval(timer);
       await worker.close().catch(() => undefined);
       await server.close().catch(() => undefined);
       await core.close().catch(() => undefined);
       await prisma.$disconnect().catch(() => undefined);
+    },
+    /** Stops only the queue consumer, simulating a worker process that died. */
+    stopWorker: async () => {
+      await worker.close().catch(() => undefined);
+    },
+    /** Starts a fresh consumer on the same queue, simulating a worker restart. */
+    startWorkerOnly: async () => {
+      worker = createRunWorker({
+        config: queueConfig,
+        logger,
+        concurrency: 4,
+        handler: async (payload) => {
+          await services.workflow.executeRun(payload);
+        },
+      });
     },
   };
 }
@@ -107,6 +148,64 @@ export async function resetAndSeed(system: TestSystem): Promise<void> {
 
 export async function clearData(system: TestSystem): Promise<void> {
   await truncateAll(system.prisma);
+}
+
+/**
+ * Processes every due outbox message synchronously, using the same message→job
+ * mapping as the dispatcher. Tests that need deterministic, step-by-step control
+ * (rather than "fire the loops and wait") drive the workflow through here.
+ */
+export async function drainOutbox(system: TestSystem, maxCycles = 12): Promise<number> {
+  let processed = 0;
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const batch = await system.core.store.outbox.claimDueBatch(50, new Date());
+    if (batch.length === 0) break;
+    for (const record of batch) {
+      const job = toRunJob(record);
+      if (job) await system.services.workflow.executeRun(job);
+      await system.core.store.outbox.markDispatched(record.id, new Date());
+      processed += 1;
+    }
+  }
+  return processed;
+}
+
+/** Creates (or reuses) a user record, mirroring how the dev-token endpoint provisions one. */
+export async function createUser(
+  system: TestSystem,
+  role: 'ANALYST' | 'APPROVER' | 'ADMIN',
+  options: { tenantId?: string; email?: string } = {},
+): Promise<{ userId: string; tenantId: string; role: 'ANALYST' | 'APPROVER' | 'ADMIN' }> {
+  const email = options.email ?? `${role.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
+  const user = await system.core.store.users.upsert({
+    tenantId: options.tenantId ?? 'tenant-demo',
+    subject: `local:${role.toLowerCase()}:${email}`,
+    email,
+    name: `${role} test user`,
+    role,
+  });
+  return { userId: user.id, tenantId: user.tenantId, role: user.role };
+}
+
+/** Submits a run through the application service (no HTTP) and returns its id. */
+export async function submitRunDirect(
+  system: TestSystem,
+  principal: { userId: string; tenantId: string },
+  overrides: Partial<{ task: string; from: string; to: string; idempotencyKey: string }> = {},
+): Promise<string> {
+  const result = await system.services.runs.submit({
+    tenantId: principal.tenantId,
+    userId: principal.userId,
+    idempotencyKey: overrides.idempotencyKey ?? null,
+    request: {
+      task: overrides.task ?? 'Analyse Q3 supplier spend and identify refund candidates with supporting evidence.',
+      taskType: 'SPEND_ANOMALY_RESEARCH',
+      from: overrides.from ?? DEMO_WINDOW.from,
+      to: overrides.to ?? DEMO_WINDOW.to,
+      currency: 'USD',
+    },
+  });
+  return result.runId;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,14 +224,18 @@ export async function issueToken(
   role: 'ANALYST' | 'APPROVER' | 'ADMIN',
   options: { tenantId?: string; email?: string; subject?: string } = {},
 ): Promise<TestPrincipal> {
+  // Subject and email are derived together: within a tenant an email identifies one
+  // user, so two subjects cannot share one (this mirrors an IdP-provisioned user).
+  const email = options.email ?? `${role.toLowerCase()}@example.test`;
+  const subject = options.subject ?? `local:${role.toLowerCase()}:${email}`;
   const response = await system.app.inject({
     method: 'POST',
     url: '/api/auth/dev-token',
     payload: {
       role,
       tenantId: options.tenantId ?? 'tenant-demo',
-      ...(options.email ? { email: options.email } : {}),
-      ...(options.subject ? { subject: options.subject } : {}),
+      email,
+      subject,
     },
   });
   if (response.statusCode !== 201) {
@@ -151,6 +254,9 @@ export function authHeaders(principal: TestPrincipal, extra: Record<string, stri
 // ---------------------------------------------------------------------------
 
 export const DEMO_WINDOW = { from: '2026-07-01', to: '2026-09-30' };
+
+/** Convenience re-export so tests exercise the production mapping. */
+export { toRunJob };
 
 export async function submitRun(
   system: TestSystem,
@@ -234,7 +340,7 @@ export async function countLedgerEntries(prisma: ReturnType<typeof createTestPri
 }
 
 /** Reads the run row directly, for assertions about durable state. */
-export async function loadRunRecord(store: PrismaStore, runId: string): Promise<RunRecord | null> {
+export async function loadRunRecord(store: Pick<PrismaStore, 'runs'>, runId: string): Promise<RunRecord | null> {
   return store.runs.findById(runId);
 }
 
@@ -245,6 +351,25 @@ export async function loadRunRecord(store: PrismaStore, runId: string): Promise<
 export interface CollectedStream {
   events: Array<{ id: string; type: string; payload: Record<string, unknown> }>;
   closed: boolean;
+  /** Heartbeat comment frames observed (SRS-EVENT-007). */
+  heartbeats: number;
+  /** Raw response text, for assertions about frame structure. */
+  raw: string;
+  /** Resolves when the connection ends (server close, abort or error). */
+  finished: Promise<void>;
+  /** Disconnects the client, leaving the server-side run untouched. */
+  abort(): void;
+}
+
+/** The Fastify app can only listen once; the address is cached per test module. */
+let cachedBaseUrl: string | null = null;
+
+async function ensureListening(system: TestSystem): Promise<string> {
+  if (!cachedBaseUrl) {
+    const address = await system.app.listen({ host: '127.0.0.1', port: 0 });
+    cachedBaseUrl = address.replace('http://0.0.0.0', 'http://127.0.0.1');
+  }
+  return cachedBaseUrl;
 }
 
 /**
@@ -257,8 +382,8 @@ export async function collectSse(
   runId: string,
   options: { lastEventId?: string; stopWhenClosed?: boolean } = {},
 ): Promise<CollectedStream> {
-  const address = await system.app.listen({ host: '127.0.0.1', port: 0 });
-  const url = `${address.replace('http://0.0.0.0', 'http://127.0.0.1')}/api/tasks/${runId}/stream`;
+  const baseUrl = await ensureListening(system);
+  const url = `${baseUrl}/api/tasks/${runId}/stream`;
   const controller = new AbortController();
   const headers: Record<string, string> = { accept: 'text/event-stream', authorization: `Bearer ${principal.token}` };
   if (options.lastEventId) headers['last-event-id'] = options.lastEventId;
@@ -268,7 +393,7 @@ export async function collectSse(
     throw new Error(`SSE connection failed with status ${response.status}`);
   }
 
-  const collected: CollectedStream = { events: [], closed: false };
+  const collected = { events: [], closed: false, heartbeats: 0, raw: '' } as unknown as CollectedStream;
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -278,7 +403,12 @@ export async function collectSse(
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        collected.raw += chunk;
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith(': heartbeat')) collected.heartbeats += 1;
+        }
         let index = buffer.indexOf('\n\n');
         while (index !== -1) {
           const frame = buffer.slice(0, index);
@@ -300,10 +430,7 @@ export async function collectSse(
     }
   })();
 
-  return Object.assign(collected, { finished, abort: () => controller.abort() }) as CollectedStream & {
-    finished: Promise<void>;
-    abort(): void;
-  };
+  return Object.assign(collected, { finished, abort: () => controller.abort() }) as CollectedStream;
 }
 
 function parseFrame(frame: string): { id: string; type: string; payload: Record<string, unknown> } | null {

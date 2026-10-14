@@ -94,6 +94,20 @@ describe('policy: hard denials', () => {
     { name: 'amount above the refundable balance', input: { refundableAmountMinor: 9_999 }, rule: RuleId.WITHIN_REFUNDABLE },
     { name: 'conflicting refund in flight', input: { hasConflictingActiveRefund: true }, rule: RuleId.NO_CONFLICTING_REFUND },
     { name: 'unsupported currency', input: { currency: 'EUR' }, rule: RuleId.CURRENCY_SUPPORTED },
+    {
+      name: 'transaction that is already refunded',
+      input: {
+        transaction: {
+          id: 'tx-1',
+          supplierId: 'sup-1',
+          amountMinor: 250_000,
+          currency: 'USD',
+          status: 'REFUNDED',
+          occurredAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      rule: RuleId.TRANSACTION_REFUNDABLE,
+    },
     { name: 'non-positive amount', input: { amountMinor: 0 }, rule: RuleId.AMOUNT_VALID },
     { name: 'amount above the policy ceiling', input: { amountMinor: POLICY_V1.maxRefundMinor + 1, refundableAmountMinor: POLICY_V1.maxRefundMinor + 1 }, rule: RuleId.MAX_REFUND_CEILING },
   ];

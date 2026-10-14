@@ -7,7 +7,6 @@ import { prepareTestEnv, testConfig } from '../helpers/env.js';
 
 prepareTestEnv();
 const config = testConfig();
-process.env.QUEUE_PREFIX = process.env.QUEUE_PREFIX ?? 'rfa-test';
 
 if (process.env.TEST_VERBOSE === 'true') {
   console.info(`[e2e] database=${config.database.url} redis=${config.redis.url} queuePrefix=${config.redis.queuePrefix}`);

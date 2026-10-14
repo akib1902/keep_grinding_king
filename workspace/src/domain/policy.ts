@@ -131,6 +131,7 @@ export const RuleId = {
   NO_CONFLICTING_REFUND: 'POL-006',
   MAX_REFUND_CEILING: 'POL-007',
   APPROVAL_THRESHOLD: 'POL-008',
+  TRANSACTION_REFUNDABLE: 'POL-009',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -210,6 +211,17 @@ export function evaluateRefundProposal(input: PolicyReviewInput, config: PolicyC
     description: `Refund is within the policy ceiling of ${formatMoney(config.maxRefundMinor, config.currency)}.`,
     passed: withinCeiling,
     ...(withinCeiling ? {} : { detail: 'Refund exceeds the policy ceiling.' }),
+  });
+
+  // Only a posted transaction can be refunded. Without this rule a transaction
+  // already marked REFUNDED (or DISPUTED) could be paid out a second time, even
+  // though its balance looked available.
+  const transactionRefundable = transactionExists && input.transaction?.status === 'POSTED';
+  checks.push({
+    ruleId: RuleId.TRANSACTION_REFUNDABLE,
+    description: 'Source transaction is in a state that permits a refund (POSTED).',
+    passed: transactionRefundable,
+    ...(transactionRefundable ? {} : { detail: `Transaction status is ${input.transaction?.status ?? 'unknown'}.` }),
   });
 
   // Boundary rule: strictly greater than the threshold requires approval.

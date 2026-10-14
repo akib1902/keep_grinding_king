@@ -32,7 +32,12 @@ export function prepareTestEnv(): void {
   process.env.REDIS_URL = process.env.REDIS_URL ?? DEFAULT_TEST_REDIS_URL;
   process.env.LLM_PROVIDER = 'mock';
   process.env.ENABLE_DEV_TOKENS = 'true';
-  process.env.QUEUE_PREFIX = process.env.QUEUE_PREFIX ?? 'rfa-test';
+  // `.env` (loaded above) sets QUEUE_PREFIX for development. Tests must not inherit
+  // it: a dev worker listening on the development namespace would consume test jobs
+  // and resolve them against the development database, so a run would sit in PENDING
+  // forever. The test namespace is therefore assigned unconditionally here, and can be
+  // overridden only through the test-specific TEST_QUEUE_PREFIX variable.
+  process.env.QUEUE_PREFIX = process.env.TEST_QUEUE_PREFIX ?? 'rfa-test';
   prepared = true;
 }
 

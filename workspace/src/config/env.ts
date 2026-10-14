@@ -66,6 +66,11 @@ const RawSchema = z.object({
 
   APPROVAL_TTL_SECONDS: z.coerce.number().int().min(30).default(3600),
 
+  // SSE tuning (SRS-EVENT-007). The poll interval trades latency against load; the
+  // heartbeat keeps intermediaries from tearing down an idle connection.
+  SSE_POLL_INTERVAL_MS: z.coerce.number().int().min(50).default(500),
+  SSE_HEARTBEAT_MS: z.coerce.number().int().min(100).default(15_000),
+
   RECOVERY_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
   STALE_ATTEMPT_MS: z.coerce.number().int().min(1000).default(60_000),
 });
@@ -74,7 +79,7 @@ export interface AppConfig {
   env: 'development' | 'test' | 'production';
   isProduction: boolean;
   logLevel: z.infer<typeof RawSchema>['LOG_LEVEL'];
-  api: { host: string; port: number; appOrigin: string; corsOrigins: string[] };
+  api: { host: string; port: number; appOrigin: string; corsOrigins: string[]; sse: { pollIntervalMs: number; heartbeatMs: number } };
   database: { url: string; testUrl: string | undefined };
   redis: { url: string; queuePrefix: string; queueName: string; attempts: number; backoffMs: number };
   auth: { jwtSecret: string; issuer: string; audience: string; enableDevTokens: boolean };
@@ -109,6 +114,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       corsOrigins: raw.CORS_ORIGINS.split(',')
         .map((origin) => origin.trim())
         .filter((origin) => origin.length > 0),
+      sse: { pollIntervalMs: raw.SSE_POLL_INTERVAL_MS, heartbeatMs: raw.SSE_HEARTBEAT_MS },
     },
     database: { url: raw.DATABASE_URL, testUrl: raw.TEST_DATABASE_URL },
     redis: {

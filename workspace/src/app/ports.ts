@@ -533,6 +533,8 @@ export interface RunJobPayload {
 export interface QueuePort {
   /** Publishes a run-execution job. The payload carries stable ids only. */
   enqueueRun(payload: RunJobPayload, options?: { jobId?: string; delayMs?: number }): Promise<void>;
+  /** Queue depth by state, for operational visibility (SRS-OBS-003). */
+  counts(): Promise<Record<string, number>>;
   close(): Promise<void>;
 }
 

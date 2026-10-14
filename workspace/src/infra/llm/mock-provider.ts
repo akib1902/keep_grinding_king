@@ -99,31 +99,63 @@ export class MockLlmProvider implements LlmProviderPort {
 
     const window = extractWindow(request.messages);
     const calls = history.toolCalls;
-    const calledNames = calls.map((record) => record.name);
+    /** Only a *successful* call advances the plan: a rejected call is retried, as a real model would. */
+    const succeeded = (name: string): boolean => lastSuccessData(calls, name) !== null;
+
+    // The report is already finalised: end the attempt with a text-only turn, which
+    // is how a real model signals it is finished. Without this the script would keep
+    // re-finalising until the tool budget ran out.
+    if (succeeded('finalize_research_report')) {
+      return {
+        assistantMessage: { role: 'assistant', content: 'The research report is finalised.' },
+        toolCalls: [],
+        text: 'The research report is finalised.',
+        usage,
+        model: this.model,
+      };
+    }
 
     // 1. Retrieve the window's transactions.
-    if (!calledNames.includes('list_transactions')) {
+    if (!succeeded('list_transactions')) {
       return this.#toolTurn('Retrieving transactions for the analysis window.', call('list_transactions', { from: window.from, to: window.to }), usage);
     }
 
     // 2. Run the deterministic anomaly rules.
-    if (!calledNames.includes('detect_spend_anomalies')) {
+    if (!succeeded('detect_spend_anomalies')) {
       return this.#toolTurn('Running the versioned anomaly rules.', call('detect_spend_anomalies', { from: window.from, to: window.to }), usage);
     }
 
     // 3. Propose a refund when, and only when, a rule supports one.
+    //
+    // Two behaviours here mirror what a competent analyst would do:
+    //  * the refund is claimed against a specific transaction and never exceeds that
+    //    transaction's own amount, so the amount is defensible on the evidence;
+    //  * when the policy denies a proposal, the next eligible finding is tried
+    //    instead of giving up (a conflicting refund for one transaction does not
+    //    invalidate an anomaly on another).
     const analysis = lastSuccessData(calls, 'detect_spend_anomalies') as DetectResult | null;
-    const finding = analysis?.findings.find((candidate) => candidate.refundEligible && candidate.suggestedRefundMinor > 0) ?? null;
-    const proposalAttempted = calledNames.includes('create_refund_proposal');
+    const listed = lastSuccessData(calls, 'list_transactions') as ListedTransactions | null;
+    const amountByTransaction = new Map((listed?.transactions ?? []).map((tx) => [tx.transactionId, tx.amountMinor]));
 
-    if (finding && !proposalAttempted) {
-      const transactionId = finding.transactionIds[0] ?? '';
+    const eligible = (analysis?.findings ?? []).filter((candidate) => candidate.refundEligible && candidate.suggestedRefundMinor > 0);
+    const attempted = calls.filter((record) => record.name === 'create_refund_proposal' && !record.failed).length;
+    const lastProposal = lastAnyData(calls, 'create_refund_proposal') as ProposalResult | null;
+    // A denied proposal means "try the next finding"; an accepted one means move on.
+    const mayPropose = lastProposal === null || lastProposal.policyOutcome === 'DENY';
+    const finding = eligible[attempted] ?? null;
+    // Leave room in the six-call budget for the final report.
+    const budgetRemains = calls.length < 5;
+
+    if (finding && mayPropose && budgetRemains) {
       const supplierId = finding.supplierIds[0] ?? '';
+      const transactionId = finding.transactionIds.find((id) => amountByTransaction.has(id)) ?? finding.transactionIds[0] ?? '';
+      const transactionAmount = amountByTransaction.get(transactionId) ?? finding.suggestedRefundMinor;
+      const amountMinor = Math.max(1, Math.min(finding.suggestedRefundMinor, transactionAmount));
       return this.#toolTurn(
-        `Proposing a refund bounded by finding ${finding.findingId}.`,
+        `Proposing a refund bounded by finding ${finding.findingId} (${amountMinor} of ${finding.suggestedRefundMinor} minor units identified).`,
         call('create_refund_proposal', {
           transactionId,
-          amountMinor: finding.suggestedRefundMinor,
+          amountMinor,
           currency: analysis?.currency ?? 'USD',
           justification: `${finding.title}: ${finding.observations.join(' ')} (supplier ${supplierId}, rule ${finding.ruleId}).`,
           findingId: finding.findingId,
@@ -211,6 +243,10 @@ interface DetectResult {
     refundEligible: boolean;
     suggestedRefundMinor: number;
   }>;
+}
+
+interface ListedTransactions {
+  transactions: Array<{ transactionId: string; amountMinor: number }>;
 }
 
 interface ProposalResult {

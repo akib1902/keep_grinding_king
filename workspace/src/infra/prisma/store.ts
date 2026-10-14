@@ -16,6 +16,7 @@
 import prismaPkg from '@prisma/client';
 import type { Prisma as PrismaNs, PrismaClient as PrismaClientType } from '@prisma/client';
 
+import { newId } from '../../domain/ids.js';
 import type { PolicyDecision } from '../../domain/policy.js';
 import type { ApprovalStatus, ProposalStatus, RunStatus, SettlementStatus } from '../../domain/state.js';
 import type {
@@ -59,10 +60,6 @@ type Db = PrismaNs.TransactionClient;
 
 class UniqueViolation extends Error {}
 class NotFoundError extends Error {}
-
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
-}
 
 export class PrismaStore implements Store {
   readonly #db: Db;
@@ -199,32 +196,34 @@ export class PrismaStore implements Store {
   get steps(): StepStore {
     return {
       append: async (input) => {
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const aggregate = await this.#db.runStep.aggregate({ where: { runId: input.runId }, _max: { sequence: true } });
+        // Sequence allocation is serialised per run by locking the run row for the
+        // duration of the transaction. Optimistic "read max, then insert, retry on
+        // conflict" collapses under concurrent workers; a per-run lock does not,
+        // and it keeps the sequence gap-free and duplicate-free.
+        const write = async (db: Db) => {
+          await db.$queryRaw`SELECT id FROM runs WHERE id = ${input.runId} FOR UPDATE`;
+          const aggregate = await db.runStep.aggregate({ where: { runId: input.runId }, _max: { sequence: true } });
           const sequence = (aggregate._max.sequence ?? 0) + 1;
-          try {
-            const row = await this.#db.runStep.create({
-              data: {
-                runId: input.runId,
-                sequence,
-                attemptId: input.attemptId,
-                stepType: input.stepType,
-                status: input.status,
-                summary: input.summary ?? null,
-                payload: (input.payload ?? undefined) as PrismaNs.InputJsonValue | undefined,
-                errorCode: input.errorCode ?? null,
-                errorMessage: input.errorMessage ?? null,
-                retryable: input.retryable ?? null,
-                latencyMs: input.latencyMs ?? null,
-                ...(input.status === 'STARTED' ? {} : { completedAt: new Date() }),
-              },
-            });
-            return mapStep(row as unknown as Record<string, unknown>);
-          } catch (error) {
-            if (!isUniqueViolation(error)) throw error;
-          }
-        }
-        throw new Error(`Could not append a run step for run ${input.runId} after repeated sequence contention.`);
+          const row = await db.runStep.create({
+            data: {
+              runId: input.runId,
+              sequence,
+              attemptId: input.attemptId,
+              stepType: input.stepType,
+              status: input.status,
+              summary: input.summary ?? null,
+              payload: (input.payload ?? undefined) as PrismaNs.InputJsonValue | undefined,
+              errorCode: input.errorCode ?? null,
+              errorMessage: input.errorMessage ?? null,
+              retryable: input.retryable ?? null,
+              latencyMs: input.latencyMs ?? null,
+              ...(input.status === 'STARTED' ? {} : { completedAt: new Date() }),
+            },
+          });
+          return mapStep(row as unknown as Record<string, unknown>);
+        };
+        if (this.#root === null) return write(this.#db);
+        return this.#root.$transaction((tx) => write(tx), { maxWait: 15_000, timeout: 20_000 });
       },
 
       listByRun: async (runId) => {
@@ -240,26 +239,26 @@ export class PrismaStore implements Store {
 
   get events(): EventStore {
     return {
+      // Same per-run serialisation as steps: an SSE client replays by sequence, so
+      // a gap or a duplicate is a correctness bug, not a cosmetic one.
       append: async (input) => {
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const aggregate = await this.#db.runEvent.aggregate({ where: { runId: input.runId }, _max: { sequence: true } });
+        const write = async (db: Db) => {
+          await db.$queryRaw`SELECT id FROM runs WHERE id = ${input.runId} FOR UPDATE`;
+          const aggregate = await db.runEvent.aggregate({ where: { runId: input.runId }, _max: { sequence: true } });
           const sequence = (aggregate._max.sequence ?? 0) + 1;
-          try {
-            const row = await this.#db.runEvent.create({
-              data: {
-                runId: input.runId,
-                sequence,
-                eventType: input.eventType,
-                version: input.version ?? 1,
-                payload: input.payload as PrismaNs.InputJsonValue,
-              },
-            });
-            return mapEvent(row as unknown as Record<string, unknown>);
-          } catch (error) {
-            if (!isUniqueViolation(error)) throw error;
-          }
-        }
-        throw new Error(`Could not append a run event for run ${input.runId} after repeated sequence contention.`);
+          const row = await db.runEvent.create({
+            data: {
+              runId: input.runId,
+              sequence,
+              eventType: input.eventType,
+              version: input.version ?? 1,
+              payload: input.payload as PrismaNs.InputJsonValue,
+            },
+          });
+          return mapEvent(row as unknown as Record<string, unknown>);
+        };
+        if (this.#root === null) return write(this.#db);
+        return this.#root.$transaction((tx) => write(tx), { maxWait: 15_000, timeout: 20_000 });
       },
 
       listByRun: async (runId, afterSequence, limit) => {
@@ -284,22 +283,28 @@ export class PrismaStore implements Store {
 
   get outbox(): OutboxStore {
     return {
+      /**
+       * Enqueues idempotently.
+       *
+       * Implemented as a single `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+       * rather than "create, catch the unique violation, then read". A unique
+       * violation aborts the surrounding PostgreSQL transaction, which makes the
+       * catch-then-read pattern unusable whenever this is called inside one — and it
+       * is called inside the approval decision and submission transactions.
+       */
       enqueue: async (input) => {
-        try {
-          const row = await this.#db.outboxEvent.create({
-            data: {
-              topic: input.topic,
-              payload: input.payload as PrismaNs.InputJsonValue,
-              dedupeKey: input.dedupeKey,
-            },
-          });
-          return mapOutbox(row as unknown as Record<string, unknown>);
-        } catch (error) {
-          if (!isUniqueViolation(error)) throw error;
-          const existing = await this.#db.outboxEvent.findUnique({ where: { dedupeKey: input.dedupeKey } });
-          if (!existing) throw new UniqueViolation(`Outbox message ${input.dedupeKey} vanished after a unique conflict.`);
-          return mapOutbox(existing as unknown as Record<string, unknown>);
-        }
+        const payloadJson = JSON.stringify(input.payload ?? {});
+        const rows = await this.#db.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+          INSERT INTO outbox_events (id, topic, payload, dedupe_key, status, attempts, available_at, created_at)
+          VALUES (${newId()}, ${input.topic}, ${payloadJson}::jsonb, ${input.dedupeKey}, 'PENDING', 0, now(), now())
+          ON CONFLICT (dedupe_key) DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
+          RETURNING id, topic, payload, dedupe_key AS "dedupeKey", status, attempts,
+                    last_error AS "lastError", available_at AS "availableAt",
+                    created_at AS "createdAt", dispatched_at AS "dispatchedAt"
+        `);
+        const row = rows[0];
+        if (!row) throw new UniqueViolation(`Outbox message ${input.dedupeKey} could not be enqueued.`);
+        return mapOutbox(row);
       },
 
       claimDueBatch: async (limit, now) => {
@@ -351,27 +356,27 @@ export class PrismaStore implements Store {
 
   get idempotency(): IdempotencyStore {
     return {
+      /**
+       * Atomically reserves a key. `ON CONFLICT DO NOTHING` never raises, so this is
+       * safe inside a caller's transaction (a caught unique violation would abort it).
+       */
       claim: async (input) => {
-        try {
-          const row = await this.#db.idempotencyKey.create({
-            data: {
-              id: input.id,
-              scope: input.scope,
-              key: input.key,
-              tenantId: input.tenantId,
-              requestHash: input.requestHash,
-              status: 'IN_PROGRESS',
-            },
-          });
-          return { claimed: true, record: mapIdempotency(row as unknown as Record<string, unknown>) };
-        } catch (error) {
-          if (!isUniqueViolation(error)) throw error;
-          const existing = await this.#db.idempotencyKey.findUnique({
-            where: { scope_key: { scope: input.scope, key: input.key } },
-          });
-          if (!existing) throw error;
-          return { claimed: false, record: mapIdempotency(existing as unknown as Record<string, unknown>) };
-        }
+        const inserted = await this.#db.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+          INSERT INTO idempotency_keys (id, scope, key, tenant_id, request_hash, status, created_at, updated_at)
+          VALUES (${input.id}, ${input.scope}, ${input.key}, ${input.tenantId}, ${input.requestHash}, 'IN_PROGRESS', now(), now())
+          ON CONFLICT (scope, key) DO NOTHING
+          RETURNING id, scope, key, tenant_id AS "tenantId", request_hash AS "requestHash", status,
+                    status_code AS "statusCode", response_body AS "responseBody", resource_id AS "resourceId",
+                    created_at AS "createdAt", updated_at AS "updatedAt"
+        `);
+        const owned = inserted[0];
+        if (owned) return { claimed: true, record: mapIdempotency(owned) };
+
+        const existing = await this.#db.idempotencyKey.findUnique({
+          where: { scope_key: { scope: input.scope, key: input.key } },
+        });
+        if (!existing) throw new Error(`Idempotency key ${input.scope}/${input.key} could not be resolved after a conflict.`);
+        return { claimed: false, record: mapIdempotency(existing as unknown as Record<string, unknown>) };
       },
 
       complete: async (id, input) => {

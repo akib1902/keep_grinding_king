@@ -66,26 +66,32 @@ export class OutboxDispatcher {
   }
 
   async #publish(record: OutboxRecord): Promise<void> {
-    switch (record.topic) {
-      case 'run.execute':
-      case 'run.resume': {
-        const payload = record.payload as unknown as RunJobPayload & { proposalId?: string; decision?: string };
-        await this.#deps.queue.enqueueRun(
-          {
-            version: payload.version ?? 1,
-            runId: payload.runId,
-            attemptId: payload.attemptId ?? `resume-${record.id}`,
-            attemptCount: payload.attemptCount ?? 1,
-            reason: record.topic === 'run.resume' ? 'APPROVAL_RESUME' : (payload.reason ?? 'SUBMITTED'),
-          },
-          // Deterministic job id: a re-published message cannot create a second
-          // job for the same logical attempt.
-          { jobId: `${record.topic}:${record.dedupeKey}` },
-        );
-        return;
-      }
-      default:
-        throw new Error(`Unknown outbox topic "${record.topic}".`);
-    }
+    const job = toRunJob(record);
+    if (!job) throw new Error(`Unknown outbox topic "${record.topic}".`);
+    // Deterministic job id: a re-published message cannot create a second job for
+    // the same logical attempt.
+    await this.#deps.queue.enqueueRun(job, { jobId: `${record.topic}:${record.dedupeKey}` });
   }
+}
+
+/**
+ * Translates a durable outbox message into a queue job.
+ *
+ * Exported so tests drive the *same* mapping the dispatcher uses instead of
+ * re-implementing it — a test that mirrors production logic proves nothing about
+ * production logic.
+ */
+export function toRunJob(record: Pick<OutboxRecord, 'id' | 'topic' | 'payload' | 'dedupeKey'>): RunJobPayload | null {
+  if (record.topic !== 'run.execute' && record.topic !== 'run.resume') return null;
+  const payload = record.payload as unknown as Partial<RunJobPayload>;
+  if (typeof payload.runId !== 'string') throw new Error(`Outbox message ${record.dedupeKey} has no runId.`);
+  return {
+    version: payload.version ?? 1,
+    runId: payload.runId,
+    // A resumption message has no attempt of its own: the resumed segment mints
+    // the next attempt, so this value is only an identifier for logging.
+    attemptId: payload.attemptId ?? `resume-${record.id}`,
+    attemptCount: payload.attemptCount ?? 1,
+    reason: record.topic === 'run.resume' ? 'APPROVAL_RESUME' : (payload.reason ?? 'SUBMITTED'),
+  };
 }
