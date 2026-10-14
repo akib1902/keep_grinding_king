@@ -225,8 +225,11 @@ to resume. This is the same data the SSE stream carries.
 
 Audit records: `{ auditId, actorType (USER|SYSTEM), actorId, action, targetType,
 targetId, metadata, createdAt }` — capped at 500 newest records. Actions include
-`run.completed`, `run.failed`, `run.awaiting_approval`, `approval.decided`,
-`policy.denied`, `settlement.committed`, `run.recovered`.
+`run.submitted`, `refund_proposal.created`, `refund_proposal.denied_by_policy`,
+`approval.requested`, `approval.approved`, `approval.rejected`, `approval.expired`,
+`run.awaiting_approval`, `run.completed`, `run.completed_after_decision`, `run.failed`,
+`run.failed_stale_attempt`, `run.cancelled`, `settlement.committed`,
+`settlement.refused`, `settlement.failed`.
 
 ### `POST /api/runs/:id/cancel`
 

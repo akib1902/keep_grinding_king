@@ -294,7 +294,7 @@ serve it. Structured logs carry `requestId`, `runId`, `attemptId` for correlatio
 | Model returns malformed tool args | `TOOL_ARGUMENT_INVALID`, counts against budget, run fails cleanly | `tests/unit/tool-registry.test.ts` |
 | Model/provider outage | bounded retries with backoff, then `PROVIDER_ERROR` failure — never a silent partial settlement | mock-provider fault injection |
 | Client disconnects from SSE | events keep accumulating; `Last-Event-ID` replays them | `tests/e2e/sse.test.ts` |
-| Redis unavailable at submission | submission fails cleanly (`SERVICE_UNAVAILABLE`) rather than losing the run: the outbox row is committed first and dispatched later | outbox integration tests |
+| Redis unavailable at submission | submission still succeeds: only the run row and its outbox message are written to PostgreSQL, so the 202 stands and the dispatcher publishes the moment Redis returns — no run is lost to a queue outage | `POST /api/runs` never touches Redis (verified by inspection of `run-service.ts`); outbox retry is covered by the integration tests |
 | Two test/dev environments share Redis | disjoint queue namespaces (`QUEUE_PREFIX`); a dev worker cannot consume test jobs | `tests/helpers/env.ts` |
 
 ## 12. Testing strategy
