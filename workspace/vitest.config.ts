@@ -11,6 +11,9 @@ export default defineConfig({
     include: [],
     testTimeout: 30_000,
     hookTimeout: 60_000,
+    // Suites touch the same Postgres database and Redis namespace, so files run
+    // sequentially; individual files may still parallelise their own cases.
+    fileParallelism: false,
     projects: [
       {
         test: {
@@ -25,7 +28,6 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/integration/**/*.test.ts'],
           setupFiles: ['tests/setup/integration.setup.ts'],
-          fileParallelism: false,
           testTimeout: 60_000,
           hookTimeout: 120_000,
         },
@@ -36,7 +38,6 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/e2e/**/*.test.ts'],
           setupFiles: ['tests/setup/e2e.setup.ts'],
-          fileParallelism: false,
           testTimeout: 120_000,
           hookTimeout: 120_000,
         },
