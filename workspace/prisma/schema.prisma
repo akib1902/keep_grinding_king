@@ -1,0 +1,489 @@
+// Resilient Multi-Step Financial Research & Settlement Agent
+// PostgreSQL is the authoritative store for workflow and financial state (PRD §3.2).
+//
+// Conventions:
+//  * Money is stored as INTEGER minor units (cents) — SRS-POLICY-003. No floats.
+//  * Terminal financial records (ledger_entries) are append-only and never updated
+//    by ordinary application workflows (SRS-AUDIT-003).
+//  * Uniqueness constraints are the last line of defence for idempotency
+//    (BUS-RULE-05, SRS-SETTLE-003).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ANALYST
+  APPROVER
+  ADMIN
+}
+
+model User {
+  id       String   @id @default(uuid())
+  tenantId String   @map("tenant_id")
+  email    String
+  name     String
+  /// Authentication subject from the identity provider (JWT `sub`).
+  subject  String   @unique
+  role     UserRole
+  active   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  runs              Run[]
+  approvalsDecided  ApprovalRequest[] @relation("ApprovalDecisionMaker")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Workflow: runs, steps, events
+// ---------------------------------------------------------------------------
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  REQUIRES_HUMAN_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum StepType {
+  RUN_ACCEPTED
+  ATTEMPT_STARTED
+  MODEL_TURN
+  TOOL_CALL
+  RESEARCH_REPORT
+  PROPOSAL_CREATED
+  POLICY_EVALUATION
+  APPROVAL_REQUIRED
+  APPROVAL_DECIDED
+  SETTLEMENT
+  ATTEMPT_FAILED
+  RECOVERY_REQUEUE
+}
+
+enum StepStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+model Run {
+  id       String    @id @default(uuid())
+  tenantId String    @map("tenant_id")
+  ownerId  String    @map("owner_id")
+  /// Canonical task type, e.g. `SPEND_ANOMALY_RESEARCH`.
+  taskType String    @map("task_type")
+  status   RunStatus @default(PENDING)
+
+  /// Validated request payload (task description + analysis parameters).
+  request Json
+
+  /// Immutable policy version used to evaluate this run's proposals.
+  policyVersion String @map("policy_version")
+
+  /// Optimistic concurrency guard for state transitions (SRS-STATE-004).
+  version Int @default(0)
+
+  tokenUsage  Json?   @map("token_usage")
+  result      Json?
+  errorCode   String? @map("error_code")
+  errorMessage String? @map("error_message")
+
+  /// Current in-flight attempt, if any.
+  attemptId     String?   @map("attempt_id")
+  attemptCount  Int       @default(0) @map("attempt_count")
+  heartbeatAt   DateTime? @map("heartbeat_at")
+
+  idempotencyKeyId String? @unique @map("idempotency_key_id")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  steps       RunStep[]
+  events      RunEvent[]
+  proposals   RefundProposal[]
+  approvals   ApprovalRequest[]
+  settlements SettlementOperation[]
+  auditEvents AuditEvent[]
+  idempotency IdempotencyKey? @relation(fields: [idempotencyKeyId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([ownerId, createdAt])
+  /// Recovery queries scan for stale, non-terminal runs (SRS-QUEUE-005).
+  @@index([status, heartbeatAt])
+  @@map("runs")
+}
+
+model RunStep {
+  id        String     @id @default(uuid())
+  runId     String     @map("run_id")
+  sequence  Int
+  attemptId String?    @map("attempt_id")
+  stepType  StepType   @map("step_type")
+  status    StepStatus @default(STARTED)
+
+  summary String?
+  /// Tool name, model name, policy decision, ... (redacted; never raw secrets).
+  payload Json?
+  errorCode String? @map("error_code")
+  errorMessage String? @map("error_message")
+  retryable Boolean?
+
+  latencyMs Int? @map("latency_ms")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  run Run @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  /// Ordered step identifiers within a run (SRS-AUDIT: "ordered identifiers").
+  @@unique([runId, sequence])
+  @@index([runId, createdAt])
+  @@map("run_steps")
+}
+
+model RunEvent {
+  id        String   @id @default(uuid())
+  runId     String   @map("run_id")
+  /// Monotonic sequence per run; also the SSE `id:` so clients can replay.
+  sequence  Int
+  eventType String   @map("event_type")
+  /// Payload schema version for forward-compatible clients.
+  version   Int      @default(1)
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run Run @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@index([runId, sequence])
+  @@map("run_events")
+}
+
+// ---------------------------------------------------------------------------
+// Transactional outbox (closes the DB→queue dual-write gap, SRS-RUN-004)
+// ---------------------------------------------------------------------------
+
+enum OutboxStatus {
+  PENDING
+  DISPATCHED
+  FAILED
+}
+
+model OutboxEvent {
+  id   String @id @default(uuid())
+  topic String
+  /// Versioned message payload; carries stable identifiers only.
+  payload Json
+  /// Business-level de-duplication key (e.g. `resume:run:<id>:attempt:<id>`).
+  dedupeKey String @unique @map("dedupe_key")
+
+  status   OutboxStatus @default(PENDING)
+  attempts Int          @default(0)
+  lastError String?     @map("last_error")
+  availableAt DateTime  @default(now()) @map("available_at")
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  dispatchedAt DateTime? @map("dispatched_at")
+
+  @@index([status, availableAt])
+  @@map("outbox_events")
+}
+
+// ---------------------------------------------------------------------------
+// Request idempotency (SRS-RUN-006, SRS-RUN-007)
+// ---------------------------------------------------------------------------
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model IdempotencyKey {
+  id          String @id @default(uuid())
+  scope       String
+  key         String
+  tenantId    String @map("tenant_id")
+  /// SHA-256 of the canonicalised request body.
+  requestHash String @map("request_hash")
+
+  status     IdempotencyStatus @default(IN_PROGRESS)
+  statusCode Int?              @map("status_code")
+  responseBody Json?           @map("response_body")
+  resourceId String?           @map("resource_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  runs Run[]
+
+  @@unique([scope, key])
+  @@index([tenantId, createdAt])
+  @@map("idempotency_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Synthetic financial data
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id          String @id @default(uuid())
+  tenantId    String @map("tenant_id")
+  externalRef String @map("external_ref")
+  name        String
+  /// Descriptive risk tier supplied with the synthetic dataset.
+  riskTier    String? @map("risk_tier")
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  transactions Transaction[]
+  proposals    RefundProposal[]
+  ledgerEntries LedgerEntry[]
+
+  @@unique([tenantId, externalRef])
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  supplierId  String   @map("supplier_id")
+  amountMinor Int      @map("amount_minor")
+  currency    String
+  occurredAt  DateTime @map("occurred_at")
+  invoiceRef  String?  @map("invoice_ref")
+  /// Free-text description. Treated as UNTRUSTED input by the agent (SRS-AGENT-010).
+  description String
+  category    String
+  /// Synthetic lifecycle marker: POSTED | REFUNDED | DISPUTED
+  status      String   @default("POSTED")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  supplier  Supplier         @relation(fields: [supplierId], references: [id])
+  proposals RefundProposal[]
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, supplierId])
+  @@index([tenantId, invoiceRef])
+  @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Refund proposals + deterministic policy (PR-05, PR-06, SRS-POLICY)
+// ---------------------------------------------------------------------------
+
+enum ProposalStatus {
+  REQUIRES_APPROVAL
+  POLICY_DENIED
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  SETTLED
+}
+
+model RefundProposal {
+  id            String  @id @default(uuid())
+  tenantId      String  @map("tenant_id")
+  runId         String  @map("run_id")
+  supplierId    String  @map("supplier_id")
+  transactionId String  @map("transaction_id")
+
+  amountMinor Int    @map("amount_minor")
+  currency    String
+  /// Amount that may still be refunded for the source transaction at creation time.
+  refundableAmountMinor Int @map("refundable_amount_minor")
+
+  justification String
+  /// Evidence references (transaction ids, rule ids) supporting the proposal.
+  evidence Json
+
+  status ProposalStatus @default(REQUIRES_APPROVAL)
+
+  /// Content hash of the reviewed financial fields (SRS-APPROVAL-006 / BUS-RULE-08).
+  reviewedHash String @map("reviewed_hash")
+  /// Incremented whenever a reviewed field changes; stale approvals are rejected.
+  revision Int @default(1)
+
+  policyVersion  String @map("policy_version")
+  policyDecision Json   @map("policy_decision")
+  requiresApproval Boolean @map("requires_approval")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  run           Run                @relation(fields: [runId], references: [id], onDelete: Cascade)
+  supplier      Supplier           @relation(fields: [supplierId], references: [id])
+  transaction   Transaction        @relation(fields: [transactionId], references: [id])
+  approval      ApprovalRequest?
+  settlement    SettlementOperation?
+  ledgerEntries LedgerEntry[]
+
+  @@index([tenantId, status])
+  @@index([runId])
+  @@map("refund_proposals")
+}
+
+// ---------------------------------------------------------------------------
+// Human approval (PR-07, SRS-APPROVAL)
+// ---------------------------------------------------------------------------
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model ApprovalRequest {
+  id         String @id @default(uuid())
+  tenantId   String @map("tenant_id")
+  runId      String @map("run_id")
+  proposalId String @unique @map("proposal_id")
+
+  status ApprovalStatus @default(PENDING)
+
+  /// Proposal revision + hash captured when the approval was requested.
+  proposalRevision Int    @map("proposal_revision")
+  proposalHash     String @map("proposal_hash")
+
+  /// A snapshot of exactly what the human reviewed (BUS-RULE-08).
+  reviewedSnapshot Json @map("reviewed_snapshot")
+
+  expiresAt DateTime @map("expires_at")
+  decidedAt DateTime? @map("decided_at")
+  decidedById String? @map("decided_by_id")
+  decisionReason String? @map("decision_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run      Run            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  proposal RefundProposal @relation(fields: [proposalId], references: [id])
+  decidedBy User?         @relation("ApprovalDecisionMaker", fields: [decidedById], references: [id])
+
+  @@index([status, expiresAt])
+  @@index([runId])
+  @@map("approval_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Simulated settlement + immutable ledger (PR-08, SRS-SETTLE)
+// ---------------------------------------------------------------------------
+
+enum SettlementStatus {
+  PENDING
+  COMMITTED
+  FAILED
+  /// The write outcome could not be determined; the durable record must be
+  /// inspected before any further attempt (BUS-RULE-07).
+  UNKNOWN
+}
+
+model SettlementOperation {
+  id String @id @default(uuid())
+  /// Stable, caller-independent operation id. Unique constraint = duplicate guard.
+  operationId String @unique @map("operation_id")
+  tenantId    String @map("tenant_id")
+  runId       String @map("run_id")
+  proposalId  String @unique @map("proposal_id")
+
+  status SettlementStatus @default(PENDING)
+  attempts Int @default(0)
+
+  ledgerEntryId String? @unique @map("ledger_entry_id")
+  lastError     String? @map("last_error")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  committedAt DateTime? @map("committed_at")
+
+  run      Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  proposal RefundProposal @relation(fields: [proposalId], references: [id])
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id])
+
+  @@index([status])
+  @@map("settlement_operations")
+}
+
+enum LedgerEntryType {
+  REFUND
+}
+
+model LedgerEntry {
+  id String @id @default(uuid())
+  tenantId   String @map("tenant_id")
+  operationId String @unique @map("operation_id")
+  proposalId  String @map("proposal_id")
+  supplierId  String @map("supplier_id")
+
+  entryType LedgerEntryType @default(REFUND)
+  amountMinor Int    @map("amount_minor")
+  currency    String
+  memo        String
+  /// Hash of the settlement inputs, recorded for audit reconciliation.
+  entryHash   String @map("entry_hash")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  proposal  RefundProposal @relation(fields: [proposalId], references: [id])
+  supplier  Supplier       @relation(fields: [supplierId], references: [id])
+  operation SettlementOperation?
+
+  @@index([tenantId, createdAt])
+  @@index([supplierId])
+  @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail (PR-11, SRS-AUDIT)
+// ---------------------------------------------------------------------------
+
+enum ActorType {
+  USER
+  AGENT
+  SYSTEM
+}
+
+model AuditEvent {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  runId    String? @map("run_id")
+
+  actorType ActorType @map("actor_type")
+  actorId   String?   @map("actor_id")
+  action    String
+  targetType String @map("target_type")
+  targetId   String? @map("target_id")
+
+  /// Redacted metadata; never contains credentials or raw provider payloads.
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run Run? @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("audit_events")
+}
