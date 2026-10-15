@@ -37,8 +37,15 @@ export async function streamRunEvents(
   const lastEventId = resolveLastEventId(request);
   const raw = reply.raw;
 
+  // Taking over the socket with `writeHead` replaces every header Fastify had
+  // already set, including the CORS headers applied by the onRequest hook and the
+  // correlation id. Capture them first and carry them across, otherwise a browser
+  // on a different origin is blocked from reading the stream at all.
+  const inheritedHeaders = reply.getHeaders();
+
   reply.hijack();
   raw.writeHead(200, {
+    ...inheritedHeaders,
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-cache, no-transform',
     connection: 'keep-alive',

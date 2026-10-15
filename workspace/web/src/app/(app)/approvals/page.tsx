@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Tabs } from '@/components/ui/tabs';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -13,6 +15,7 @@ import { ApprovalStatusBadge } from '@/components/data-display/status-badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
 import { Pagination, pageCountFor, pageSlice } from '@/components/data-display/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableWrapper } from '@/components/ui/table';
+import { useSession } from '@/features/auth/session-provider';
 import { useRuns, useRunHistories } from '@/features/runs/hooks';
 import { runsWithApprovalHistory } from '@/features/runs/aggregate';
 import { APPROVAL_TABS, buildApprovalRows, filterApprovalRows, tabCounts, type ApprovalTab } from '@/features/approvals/rows';
@@ -29,9 +32,12 @@ const PAGE_SIZE = 15;
  * run's status. Expired and decided requests are shown as records, not actions.
  */
 export default function ApprovalsPage() {
+  const router = useRouter();
+  const { role } = useSession();
   const [tab, setTab] = useState<ApprovalTab>('PENDING');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [lookup, setLookup] = useState('');
 
   const runsQuery = useRuns();
   const candidates = useMemo(() => runsWithApprovalHistory(runsQuery.data ?? []).slice(0, 50), [runsQuery.data]);
@@ -45,6 +51,11 @@ export default function ApprovalsPage() {
   const currentPage = Math.min(page, pageCount);
   const visible = pageSlice(filtered, currentPage, PAGE_SIZE);
   const enrichment = useApprovalDetails(visible);
+  // An approver does not own the runs, so the run list they may read is empty and
+  // an inbox built from run history cannot list anything for them. Opening a
+  // record by the identifier they were given still works, because the approval
+  // endpoint is authorised on the approval itself.
+  const ownerScoped = role === 'APPROVER';
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,7 +76,7 @@ export default function ApprovalsPage() {
             {enrichment.isLoading ? ' · enriching visible rows…' : ''}
           </span>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-5">
           <Field label="Search" htmlFor="approvals-search" hint="Matches approval, run, proposal or supplier identifiers.">
             <div className="relative max-w-md">
               <Search aria-hidden="true" className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
@@ -81,6 +92,33 @@ export default function ApprovalsPage() {
               />
             </div>
           </Field>
+
+          <form
+            className="flex flex-wrap items-end gap-3 border-t border-border pt-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const id = lookup.trim();
+              if (id) router.push(`/approvals/${encodeURIComponent(id)}`);
+            }}
+          >
+            <Field
+              label="Open a request by identifier"
+              htmlFor="approvals-lookup"
+              className="w-full max-w-md"
+              hint="Useful when you were sent a link or an approval id rather than finding it in a list."
+            >
+              <Input
+                id="approvals-lookup"
+                value={lookup}
+                onChange={(event) => setLookup(event.target.value)}
+                placeholder="Approval identifier (UUID)"
+                className="font-mono"
+              />
+            </Field>
+            <Button type="submit" variant="secondary" disabled={lookup.trim().length === 0}>
+              Open request
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
@@ -99,11 +137,19 @@ export default function ApprovalsPage() {
               <TableSkeleton rows={6} columns={6} />
             ) : filtered.length === 0 ? (
               <EmptyState
-                title={tab === 'PENDING' ? 'No approvals are waiting' : `No ${tab.toLowerCase()} approvals`}
+                title={
+                  ownerScoped && rows.length === 0
+                    ? 'The inbox lists runs you own, and you own none'
+                    : tab === 'PENDING'
+                      ? 'No approvals are waiting'
+                      : `No ${tab.toLowerCase()} approvals`
+                }
                 description={
-                  tab === 'PENDING'
-                    ? 'When a refund proposal exceeds the policy threshold, the run pauses and its approval request appears here.'
-                    : 'No approval request has reached this state for the runs visible to you.'
+                  ownerScoped && rows.length === 0
+                    ? 'This inbox is assembled from the runs your account can list, and the API scopes that list to runs you own. Approval requests raised on another analyst’s run are still readable one by one — open the request with the identifier you were given, or follow the link from the run you were asked to review.'
+                    : tab === 'PENDING'
+                      ? 'When a refund proposal exceeds the policy threshold, the run pauses and its approval request appears here.'
+                      : 'No approval request has reached this state for the runs visible to you.'
                 }
               />
             ) : (

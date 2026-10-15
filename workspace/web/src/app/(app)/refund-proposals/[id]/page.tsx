@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CopyableId, DefinitionList } from '@/components/data-display/definition-list';
+import { PolicyCheckList } from '@/components/data-display/policy-checks';
 import { ApprovalStatusBadge, ProposalStatusBadge, SettlementStatusBadge, RunStatusBadge } from '@/components/data-display/status-badge';
 import { ErrorState } from '@/components/data-display/states';
 import { useProposal } from '@/features/proposals/hooks';
@@ -148,19 +149,7 @@ export default function RefundProposalDetailPage() {
               </span>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <ul className="flex flex-col gap-1.5">
-                {proposal.policy.checks.map((check) => (
-                  <li key={check.ruleId} className="flex items-start gap-2 text-sm">
-                    <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${check.passed ? 'bg-success' : 'bg-danger'}`} />
-                    <span>
-                      <span className="font-mono text-[12px] text-muted">{check.ruleId}</span>{' '}
-                      <span className={check.passed ? 'text-secondary' : 'font-medium text-danger'}>{check.passed ? 'passed' : 'failed'}</span> ·{' '}
-                      {policyRuleLabel(check.ruleId)}
-                      {check.detail ? ` — ${check.detail}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <PolicyCheckList checks={proposal.policy.checks} />
               {proposal.policy.denyReasons.length > 0 ? (
                 <Alert tone="danger" role="alert" title="Denied by policy">
                   {proposal.policy.denyReasons.map((reason) => policyRuleLabel(reason)).join(', ')}. No settlement can result from this proposal.

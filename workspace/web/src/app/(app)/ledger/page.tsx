@@ -16,7 +16,8 @@ import { Pagination, pageCountFor, pageSlice } from '@/components/data-display/p
 import { useRuns, useRunHistories } from '@/features/runs/hooks';
 import { runsWithApprovalHistory } from '@/features/runs/aggregate';
 import { buildLedgerRows, filterLedgerRows, isCommittedLedgerEntry } from '@/features/ledger/rows';
-import { useLedgerOperationDetails } from '@/features/proposals/hooks';
+import { useLedgerOperation, useLedgerOperationDetails } from '@/features/proposals/hooks';
+import { CopyableId, DefinitionList } from '@/components/data-display/definition-list';
 import { formatDateTime, formatMoney, shortId } from '@/lib/formatters';
 
 const PAGE_SIZE = 15;
@@ -69,6 +70,14 @@ function LedgerPageContent() {
   const currentPage = Math.min(page, pageCount);
   const visible = pageSlice(filtered, currentPage, PAGE_SIZE);
   const operations = useLedgerOperationDetails(visible.map((row) => row.operationId));
+
+  // A settlement operation can also be looked up directly by id, which is how an
+  // approver (whose account owns no runs) reaches one that was quoted to them.
+  const trimmedQuery = query.trim();
+  const looksLikeOperationId = /^[0-9a-f-]{8,}$/i.test(trimmedQuery) || trimmedQuery.startsWith('op_');
+  const directLookup = useLedgerOperation(
+    looksLikeOperationId && filtered.length === 0 ? trimmedQuery : null,
+  );
 
   const committedCount = rows.filter(isCommittedLedgerEntry).length;
 
@@ -161,6 +170,40 @@ function LedgerPageContent() {
       <Card>
         {histories.isLoading && rows.length === 0 ? (
           <TableSkeleton rows={8} columns={7} />
+        ) : filtered.length === 0 && directLookup.data ? (
+          <div className="flex flex-col gap-4 p-5">
+            <p className="text-sm text-muted">
+              No listed settlement operation matched, but the identifier you entered resolves to a recorded operation. It is shown directly from the
+              settlement endpoint.
+            </p>
+            <DefinitionList
+              columns={2}
+              items={[
+                { term: 'Operation id', value: <CopyableId value={directLookup.data.operationId} label="operation id" /> },
+                { term: 'Status', value: <SettlementStatusBadge status={directLookup.data.status} size="sm" /> },
+                { term: 'Attempts', value: String(directLookup.data.attempts), mono: true },
+                { term: 'Committed', value: directLookup.data.committedAt ?? 'not committed', mono: true },
+                {
+                  term: 'Amount (simulated)',
+                  value: directLookup.data.ledgerEntry
+                    ? formatMoney(directLookup.data.ledgerEntry.amountMinor, directLookup.data.ledgerEntry.currency)
+                    : 'no ledger entry',
+                },
+                { term: 'Ledger entry', value: directLookup.data.ledgerEntry?.ledgerEntryId ?? '—', mono: true },
+                { term: 'Source proposal', value: <Link href={`/refund-proposals/${directLookup.data.proposalId}`} className="font-mono text-primary hover:underline">{directLookup.data.proposalId}</Link> },
+                { term: 'Source run', value: <Link href={`/runs/${directLookup.data.runId}`} className="font-mono text-primary hover:underline">{directLookup.data.runId}</Link> },
+                { term: 'Last error', value: directLookup.data.lastError ?? '—' },
+              ]}
+            />
+          </div>
+        ) : filtered.length === 0 && directLookup.isPending && looksLikeOperationId ? (
+          <TableSkeleton rows={3} columns={4} />
+        ) : filtered.length === 0 && directLookup.isError && looksLikeOperationId ? (
+          <ErrorState
+            error={directLookup.error}
+            title="No settlement operation matches that identifier"
+            context="Either the identifier is not a settlement operation id, or it does not exist in your tenant."
+          />
         ) : filtered.length === 0 ? (
           <EmptyState
             title="No settlement operations match"

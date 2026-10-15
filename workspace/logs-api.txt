@@ -49,3 +49,17 @@
 {"level":"info","time":"2026-10-14T17:36:31.056Z","service":"api","requestId":"abd91159-fabe-4581-87da-0e61bec50b54","approvalId":"f1bc81f0-646b-4bf8-99b6-e6cc3791b8a6","decision":"REJECTED","runId":"060e9642-a8cb-4209-9907-2e4c2ee7aa4c","msg":"approval decision recorded"}
 {"level":"warn","time":"2026-10-14T17:36:31.060Z","service":"api","requestId":"c3c954cc-3621-4f20-97c0-bf56df224685","code":"FORBIDDEN","status":403,"msg":"request rejected"}
 {"level":"info","time":"2026-10-14T17:37:31.288Z","service":"api","host":"127.0.0.1","port":3100,"policyVersion":"v1","approvalThresholdMinor":50000,"llmProvider":"mock","devTokens":true,"msg":"api listening"}
+{"level":"info","time":"2026-10-15T13:34:07.261Z","service":"api","host":"127.0.0.1","port":3100,"policyVersion":"v1","approvalThresholdMinor":50000,"llmProvider":"mock","devTokens":true,"msg":"api listening"}
+{"level":"info","time":"2026-10-15T13:41:11.325Z","service":"api","runId":"480ee670-b599-4b26-8f89-2b976c9b39ab","tenantId":"tenant-demo","msg":"run submitted"}
+{"level":"info","time":"2026-10-15T13:41:11.328Z","service":"api","requestId":"49ab98ce-0e62-4901-b8ee-4c1513ea0804","runId":"480ee670-b599-4b26-8f89-2b976c9b39ab","idempotentReplay":false,"msg":"run accepted"}
+{"level":"info","time":"2026-10-15T13:42:39.542Z","service":"api","host":"127.0.0.1","port":3100,"policyVersion":"v1","approvalThresholdMinor":50000,"llmProvider":"mock","devTokens":true,"msg":"api listening"}
+{"level":"warn","time":"2026-10-15T13:47:34.737Z","service":"api","requestId":"aa81f98c-8380-4452-aa1d-4e7d4446ce6a","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:48:36.601Z","service":"api","requestId":"618aebee-4333-4668-a6de-c6a9d1f0f5ab","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:49:31.054Z","service":"api","requestId":"c0f1a09f-bf79-427c-a1e0-738dad953373","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:49:50.890Z","service":"api","requestId":"079e4bb9-3214-41a5-9d9a-a7aa32e4871b","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:49:51.876Z","service":"api","requestId":"0f29bd62-4222-4c93-ab21-0da6b28072b5","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:51:34.566Z","service":"api","requestId":"3efa9c80-4883-4555-8ac7-837cbc81c9b7","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:52:13.777Z","service":"api","requestId":"e2cb77f0-f202-4a71-b1fa-0e42e14d8b27","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:52:50.299Z","service":"api","requestId":"7aeaa4bc-c2c4-442e-87be-aea422dddab8","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:52:52.739Z","service":"api","requestId":"21109351-916f-4f78-932d-b8e8bbdedeb0","code":"NOT_FOUND","status":404,"msg":"request rejected"}
+{"level":"warn","time":"2026-10-15T13:53:09.555Z","service":"api","requestId":"ea91628f-e058-42db-9a10-bdab0e7d2802","code":"NOT_FOUND","status":404,"msg":"request rejected"}

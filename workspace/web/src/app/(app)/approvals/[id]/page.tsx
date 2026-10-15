@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CopyableId, DefinitionList } from '@/components/data-display/definition-list';
+import { PolicyCheckList } from '@/components/data-display/policy-checks';
 import { ApprovalStatusBadge, ProposalStatusBadge, RunStatusBadge } from '@/components/data-display/status-badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
 import { DecisionPanel } from '@/features/approvals/components/decision-panel';
+import { useSession } from '@/features/auth/session-provider';
 import { useApproval } from '@/features/approvals/hooks';
 import { useProposal } from '@/features/proposals/hooks';
 import { useRun } from '@/features/runs/hooks';
@@ -30,6 +32,7 @@ import { policyRuleLabel } from '@/lib/status';
 export default function ApprovalDetailPage() {
   const params = useParams<{ id: string }>();
   const approvalId = params?.id ?? null;
+  const { canDecide } = useSession();
 
   const approvalQuery = useApproval(approvalId);
   const approval = approvalQuery.data ?? null;
@@ -148,10 +151,17 @@ export default function ApprovalDetailPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
               {relatedFindings.length === 0 ? (
-                <EmptyState
-                  title="No finding references this transaction"
-                  description="The proposal cites a transaction the deterministic rules did not flag in the same window, so there is no matching anomaly evidence to display."
-                />
+                runQuery.isError || !run ? (
+                  <EmptyState
+                    title="The run's research report is not readable by your role"
+                    description="The backend authorises this approval to you but keeps the underlying run scoped to its owner, so the report's findings cannot be cross-referenced here. The proposal's own recorded evidence references below are the supporting detail for your decision."
+                  />
+                ) : (
+                  <EmptyState
+                    title="No finding in the report references this transaction"
+                    description="The run's report does not contain a finding citing this transaction, so there is no matching anomaly evidence to display. The proposal's recorded evidence references are shown below."
+                  />
+                )
               ) : (
                 <ul className="flex flex-col gap-4">
                   {relatedFindings.map((finding) => (
@@ -194,24 +204,7 @@ export default function ApprovalDetailPage() {
                   <p className="text-xs font-semibold tracking-wide text-muted uppercase">
                     Policy decision · {proposal.policy.version} ({proposal.policy.outcome})
                   </p>
-                  <ul className="mt-2 flex flex-col gap-1.5">
-                    {proposal.policy.checks.map((check) => (
-                      <li key={check.ruleId} className="flex items-start gap-2 text-sm">
-                        <span
-                          aria-hidden="true"
-                          className={`mt-1.5 size-1.5 shrink-0 rounded-full ${check.passed ? 'bg-success' : 'bg-danger'}`}
-                        />
-                        <span>
-                          <span className="font-mono text-[12px] text-muted">{check.ruleId}</span>{' '}
-                          <span className={check.passed ? 'text-secondary' : 'font-medium text-danger'}>
-                            {check.passed ? 'passed' : 'failed'}
-                          </span>{' '}
-                          · {policyRuleLabel(check.ruleId)}
-                          {check.detail ? ` — ${check.detail}` : ''}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <PolicyCheckList checks={proposal.policy.checks} className="mt-2" />
                   {proposal.policy.denyReasons.length > 0 ? (
                     <Alert tone="danger" role="alert" className="mt-3" title="Policy deny reasons">
                       {proposal.policy.denyReasons.map((reason) => policyRuleLabel(reason)).join(', ')}
@@ -240,6 +233,13 @@ export default function ApprovalDetailPage() {
             <CardContent className="flex flex-col gap-3">
               {runQuery.isPending ? (
                 <p className="text-sm text-muted">Loading the run…</p>
+              ) : runQuery.isError && canDecide && (runQuery.error as ApiError | undefined)?.status === 404 ? (
+                // The API authorises an approver on the approval record itself, not
+                // on the analyst's run. Saying so is more useful than an error.
+                <Alert tone="neutral" role="note" title="The underlying run is not readable by your role">
+                  The backend authorises this approval request to the approver role, but the run it belongs to stays scoped to its owner. The
+                  proposal detail below and the recorded history are the authoritative context for your decision.
+                </Alert>
               ) : runQuery.isError ? (
                 <ErrorState error={runQuery.error} onRetry={() => void runQuery.refetch()} title="The run could not be loaded" />
               ) : run ? (

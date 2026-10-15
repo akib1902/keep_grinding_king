@@ -153,21 +153,51 @@ export function eventTypeLabel(type: string): string {
   return EVENT_TYPE_LABELS[type] ?? type.replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Policy rule labels mirroring the backend's rule ids
+ * (`src/domain/policy.ts` → `RuleId`). The backend sends the rule id and its own
+ * detail text; these labels exist so a rule id is never shown unexplained.
+ */
 export const POLICY_RULE_LABELS: Record<string, string> = {
-  'POL-001': 'Amount is within the permitted refund limit',
-  'POL-002': 'Proposal cites an existing transaction',
-  'POL-003': 'Proposed amount does not exceed the refundable balance',
-  'POL-004': 'Supplier is active',
-  'POL-005': 'Transaction is in a refundable state',
+  'POL-001': 'Amount is a valid positive amount',
+  'POL-002': 'Currency is supported by the policy engine',
+  'POL-003': 'The cited transaction exists in this tenant',
+  'POL-004': 'The supplier exists and is active',
+  'POL-005': 'The proposed amount is within the refundable balance',
   'POL-006': 'No conflicting refund already exists for the transaction',
-  'POL-007': 'Currency is supported by the policy engine',
-  'POL-008': 'Amount is above zero',
-  'POL-009': 'Approval threshold applied',
-  EXCEEDS_FINDING_BASIS: 'Proposed amount exceeds the deterministic finding basis',
+  'POL-007': 'The proposal is within the maximum refund ceiling',
+  'POL-008': 'Approval threshold',
+  'POL-009': 'The transaction is in a refundable state',
+  EXCEEDS_FINDING_BASIS: 'The proposed amount exceeds the deterministic finding basis',
 };
+
+/** The rule the backend records as not-passed when approval is *required*. */
+export const THRESHOLD_RULE_ID = 'POL-008';
 
 export function policyRuleLabel(ruleId: string): string {
   return POLICY_RULE_LABELS[ruleId] ?? ruleId;
+}
+
+export interface PolicyCheckMeta {
+  label: string;
+  /** `passed`, `triggered` or `failed`. */
+  word: string;
+  tone: Tone;
+}
+
+/**
+ * Interprets a policy check.
+ *
+ * The threshold rule is deliberately special-cased: the backend records it as
+ * not-passed precisely *when the amount exceeds the threshold*, which is what
+ * causes the run to pause for approval rather than a denial. Presenting that as a
+ * failure would tell a reviewer the opposite of what happened.
+ */
+export function policyCheckMeta(ruleId: string, passed: boolean): PolicyCheckMeta {
+  const label = policyRuleLabel(ruleId);
+  if (passed) return { label, word: 'passed', tone: 'success' };
+  if (ruleId === THRESHOLD_RULE_ID) return { label, word: 'triggered', tone: 'warning' };
+  return { label, word: 'failed', tone: 'danger' };
 }
 
 /** Safe fallback for a status the frontend does not know (FDD §13). */
