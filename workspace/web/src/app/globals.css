@@ -1,0 +1,200 @@
+@import 'tailwindcss';
+
+/*
+ * LedgerFlow design tokens (FDD §8).
+ *
+ * The default theme is a light operations console: neutral background, white
+ * surfaces, dark navy primary. Every status colour is paired with a surface tint
+ * so a status can be rendered without relying on colour alone (FDD §8.2).
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f4f6f8;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --primary: #12294d;
+  --primary-hover: #1b3a6b;
+  --primary-foreground: #ffffff;
+
+  --secondary: #475569;
+  --secondary-surface: #f1f5f9;
+
+  --success: #15803d;
+  --success-surface: #dcfce7;
+  --success-border: #bbf7d0;
+
+  --warning: #b45309;
+  --warning-surface: #fef3c7;
+  --warning-border: #fde68a;
+
+  --danger: #b91c1c;
+  --danger-surface: #fee2e2;
+  --danger-border: #fecaca;
+
+  --info: #1d4ed8;
+  --info-surface: #dbeafe;
+  --info-border: #bfdbfe;
+
+  --ring: #2563eb;
+}
+
+.dark {
+  --background: #0b1220;
+  --surface: #111a2b;
+  --surface-muted: #16223a;
+  --foreground: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #1f2b41;
+  --border-strong: #2c3a53;
+
+  --primary: #dbe7ff;
+  --primary-hover: #ffffff;
+  --primary-foreground: #0b1220;
+
+  --secondary: #cbd5e1;
+  --secondary-surface: #1b2740;
+
+  --success: #4ade80;
+  --success-surface: #0f2a1c;
+  --success-border: #1d5136;
+
+  --warning: #fbbf24;
+  --warning-surface: #33260a;
+  --warning-border: #5c4310;
+
+  --danger: #f87171;
+  --danger-surface: #3a1414;
+  --danger-border: #642121;
+
+  --info: #93c5fd;
+  --info-surface: #10264a;
+  --info-border: #1e3a6d;
+
+  --ring: #60a5fa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-surface: var(--secondary-surface);
+
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-success-border: var(--success-border);
+
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-border: var(--danger-border);
+
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
+  --color-info-border: var(--info-border);
+
+  --color-ring: var(--ring);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Four-pixel spacing scale (FDD §8.4). */
+  --spacing: 0.25rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A single visible focus treatment everywhere (FDD §14). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--info-surface);
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes lf-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.animate-lf-pulse {
+  animation: lf-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lf-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-lf-slide-in {
+  animation: lf-slide-in 0.18s ease-out;
+}
