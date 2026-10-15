@@ -92,14 +92,38 @@ export function createTestPrisma(): InstanceType<typeof PrismaClient> {
   return new PrismaClient({ datasources: { db: { url: testDatabaseUrl() } } });
 }
 
+/** Postgres serialization failure: the statement was aborted to break a deadlock. */
+function isDeadlock(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === '40P01'
+  );
+}
+
 /**
  * Empties every fixture table. TRUNCATE is used deliberately: it does not fire the
  * row-level DELETE trigger that protects the ledger, but it does remove the rows,
  * which is what a fresh test fixture needs.
+ *
+ * `TRUNCATE ... CASCADE` takes an AccessExclusiveLock on every listed relation, and
+ * these suites run a real worker in-process, so a concurrent read can hold a shared
+ * lock on one of the tables and a lock cycle (40P01) becomes possible. Postgres
+ * resolves a deadlock by aborting one statement, and the documented remedy for the
+ * aborted side is to retry; the statement is idempotent, so a retry cannot mask a
+ * product defect.
  */
-export async function truncateAll(prisma: InstanceType<typeof PrismaClient>): Promise<void> {
+export async function truncateAll(prisma: InstanceType<typeof PrismaClient>, attempts = 5): Promise<void> {
   const list = TABLES.map((table) => `"${table}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+      return;
+    } catch (error) {
+      if (!isDeadlock(error) || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+    }
+  }
 }
 
 /** Truncates the test database and removes leftover BullMQ keys. */

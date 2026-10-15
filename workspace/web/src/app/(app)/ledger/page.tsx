@@ -12,6 +12,8 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableWrapper } from '@/components/ui/table';
 import { SettlementStatusBadge } from '@/components/data-display/status-badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
+import { OwnerScopedListNotice } from '@/components/data-display/scope-notice';
+import { useSession } from '@/features/auth/session-provider';
 import { Pagination, pageCountFor, pageSlice } from '@/components/data-display/pagination';
 import { useRuns, useRunHistories } from '@/features/runs/hooks';
 import { runsWithApprovalHistory } from '@/features/runs/aggregate';
@@ -50,6 +52,7 @@ export default function LedgerPage() {
 
 function LedgerPageContent() {
   const searchParams = useSearchParams();
+  const { role } = useSession();
   const [status, setStatus] = useState<string>('ALL');
   const [query, setQuery] = useState(searchParams.get('operationId') ?? '');
   const [from, setFrom] = useState('');
@@ -100,6 +103,13 @@ function LedgerPageContent() {
 
       {runsQuery.isError ? (
         <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} title="The run list could not be loaded" />
+      ) : null}
+
+      {role === 'APPROVER' ? (
+        <OwnerScopedListNotice
+          view="Settlement Ledger"
+          alternative={{ label: 'search by the operation id below', href: '/approvals' }}
+        />
       ) : null}
 
       <Card>
@@ -182,7 +192,10 @@ function LedgerPageContent() {
                 { term: 'Operation id', value: <CopyableId value={directLookup.data.operationId} label="operation id" /> },
                 { term: 'Status', value: <SettlementStatusBadge status={directLookup.data.status} size="sm" /> },
                 { term: 'Attempts', value: String(directLookup.data.attempts), mono: true },
-                { term: 'Committed', value: directLookup.data.committedAt ?? 'not committed', mono: true },
+                {
+                  term: 'Committed',
+                  value: directLookup.data.committedAt ? formatDateTime(directLookup.data.committedAt) : 'not committed',
+                },
                 {
                   term: 'Amount (simulated)',
                   value: directLookup.data.ledgerEntry
@@ -295,9 +308,30 @@ function LedgerPageContent() {
           <span className="text-xs text-muted">Read from the authoritative settlement operation endpoint.</span>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {visible.filter((row) => isCommittedLedgerEntry(row)).length === 0 ? (
+          {visible.filter((row) => isCommittedLedgerEntry(row)).length === 0 && !directLookup.data?.ledgerEntry ? (
             <p className="text-sm text-muted">No committed ledger entry is present on this page.</p>
           ) : (
+            <>
+              {directLookup.data?.ledgerEntry ? (
+                <div className="flex flex-col gap-1 border-b border-border pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="tnum text-sm font-medium text-foreground">
+                      {formatMoney(directLookup.data.ledgerEntry.amountMinor, directLookup.data.ledgerEntry.currency)}
+                      <span className="ml-2 text-[10px] tracking-wide text-muted uppercase">simulated</span>
+                    </span>
+                    <Link href={`/refund-proposals/${directLookup.data.proposalId}`} className="font-mono text-xs text-primary hover:underline">
+                      {directLookup.data.proposalId}
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
+                    <span>ledger entry {shortId(directLookup.data.ledgerEntry.ledgerEntryId, 12)}</span>
+                    <span>type {directLookup.data.ledgerEntry.entryType}</span>
+                    <span>hash {directLookup.data.ledgerEntry.entryHash.slice(0, 16)}</span>
+                    <span>created {formatDateTime(directLookup.data.ledgerEntry.createdAt)}</span>
+                    {directLookup.data.ledgerEntry.memo ? <span>memo “{directLookup.data.ledgerEntry.memo}”</span> : null}
+                  </div>
+                </div>
+              ) : null}
             <ul className="flex flex-col divide-y divide-border">
               {visible
                 .filter((row) => isCommittedLedgerEntry(row))
@@ -332,6 +366,7 @@ function LedgerPageContent() {
                   );
                 })}
             </ul>
+          </>
           )}
         </CardContent>
       </Card>

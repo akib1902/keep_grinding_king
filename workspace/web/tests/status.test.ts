@@ -9,6 +9,7 @@ import {
   approvalStatusMeta,
   eventTypeLabel,
   policyCheckMeta,
+  policyRuleFailureLabel,
   policyRuleLabel,
   proposalStatusMeta,
   THRESHOLD_RULE_ID,
@@ -96,6 +97,15 @@ describe('labels', () => {
   it('labels roles', () => {
     expect(roleLabel('ANALYST')).toBe('Finance Analyst');
     expect(roleLabel('APPROVER')).toBe('Finance Approver');
+  });
+
+  it('phrases a deny reason as a failure, not as the passing condition', () => {
+    // A rule label states what must hold; reading it back as a deny reason would
+    // say the opposite of what happened.
+    expect(policyRuleLabel('POL-006')).toBe('No conflicting refund already exists for the transaction');
+    expect(policyRuleFailureLabel('POL-006')).toBe('POL-006 — a conflicting refund already exists for the transaction');
+    expect(policyRuleFailureLabel('EXCEEDS_FINDING_BASIS')).toContain('exceeds the deterministic finding basis');
+    expect(policyRuleFailureLabel('POL-999')).toBe('POL-999');
   });
 });
 

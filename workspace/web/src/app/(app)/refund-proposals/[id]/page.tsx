@@ -16,7 +16,7 @@ import { useApproval } from '@/features/approvals/hooks';
 import { useRun } from '@/features/runs/hooks';
 import { ApiError } from '@/lib/errors';
 import { formatDateTime, formatEvidenceValue, formatMoney } from '@/lib/formatters';
-import { policyRuleLabel, proposalStatusMeta } from '@/lib/status';
+import { policyRuleFailureLabel, proposalStatusMeta } from '@/lib/status';
 
 /**
  * Refund proposal detail (FDD §7.7).
@@ -152,7 +152,8 @@ export default function RefundProposalDetailPage() {
               <PolicyCheckList checks={proposal.policy.checks} />
               {proposal.policy.denyReasons.length > 0 ? (
                 <Alert tone="danger" role="alert" title="Denied by policy">
-                  {proposal.policy.denyReasons.map((reason) => policyRuleLabel(reason)).join(', ')}. No settlement can result from this proposal.
+                  Denied because {proposal.policy.denyReasons.map((reason) => policyRuleFailureLabel(reason)).join('; ')}. No settlement can result from
+                  this proposal.
                 </Alert>
               ) : null}
               <p className="font-mono text-[11px] break-all text-muted">decision hash {proposal.policy.decisionHash}</p>

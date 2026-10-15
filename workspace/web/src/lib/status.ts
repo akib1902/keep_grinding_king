@@ -178,6 +178,30 @@ export function policyRuleLabel(ruleId: string): string {
   return POLICY_RULE_LABELS[ruleId] ?? ruleId;
 }
 
+/**
+ * How each rule reads when it is the reason a proposal was denied. A rule label
+ * describes the condition that must hold, so reading it back as a deny reason
+ * would state the opposite of what happened.
+ */
+export const POLICY_RULE_FAILURE_LABELS: Record<string, string> = {
+  'POL-001': 'the amount is not a valid positive amount',
+  'POL-002': 'the currency is not supported by the policy engine',
+  'POL-003': 'the cited transaction does not exist in this tenant',
+  'POL-004': 'the supplier is missing or inactive',
+  'POL-005': 'the proposed amount exceeds the refundable balance',
+  'POL-006': 'a conflicting refund already exists for the transaction',
+  'POL-007': 'the proposal exceeds the maximum refund ceiling',
+  'POL-008': 'the approval threshold was reached',
+  'POL-009': 'the transaction is not in a refundable state',
+  EXCEEDS_FINDING_BASIS: 'the proposed amount exceeds the deterministic finding basis',
+};
+
+/** `POL-006 — a conflicting refund already exists for the transaction`. */
+export function policyRuleFailureLabel(ruleId: string): string {
+  const reason = POLICY_RULE_FAILURE_LABELS[ruleId];
+  return reason ? `${ruleId} — ${reason}` : ruleId;
+}
+
 export interface PolicyCheckMeta {
   label: string;
   /** `passed`, `triggered` or `failed`. */

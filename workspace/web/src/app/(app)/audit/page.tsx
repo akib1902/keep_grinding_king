@@ -12,6 +12,8 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableWrapper } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
+import { OwnerScopedListNotice } from '@/components/data-display/scope-notice';
+import { useSession } from '@/features/auth/session-provider';
 import { Pagination, pageCountFor, pageSlice } from '@/components/data-display/pagination';
 import { PayloadBlock } from '@/components/data-display/timeline';
 import { useRuns, useRunAudits } from '@/features/runs/hooks';
@@ -31,6 +33,7 @@ const ACTOR_TYPES = ['ALL', 'USER', 'AGENT', 'SYSTEM'] as const;
  * tamper-proof storage: integrity is the backend's responsibility.
  */
 export default function AuditPage() {
+  const { role } = useSession();
   const [action, setAction] = useState<string>('ALL');
   const [actorType, setActorType] = useState<string>('ALL');
   const [runId, setRunId] = useState('');
@@ -80,6 +83,10 @@ export default function AuditPage() {
 
       {runsQuery.isError ? (
         <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} title="The run list could not be loaded" />
+      ) : null}
+
+      {role === 'APPROVER' ? (
+        <OwnerScopedListNotice view="Audit Trail" alternative={{ label: 'open the approval you were asked to review', href: '/approvals' }} />
       ) : null}
 
       <Card>
@@ -196,8 +203,12 @@ export default function AuditPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             title="No audit records match"
-            description="Audit records are created by the backend as the workflow runs. Clear the filters, or submit a run to generate activity."
-            action={{ label: 'New research run', href: '/runs/new' }}
+            description={
+              role === 'APPROVER'
+                ? 'Your role can read an approval and the decisions recorded against it, but the audit trail of the underlying run stays scoped to its owner. Decisions you record are still written to that trail by the backend and are visible in the approval detail.'
+                : 'Audit records are created by the backend as the workflow runs. Clear the filters, or submit a run to generate activity.'
+            }
+            action={role === 'APPROVER' ? { label: 'Open approvals inbox', href: '/approvals' } : { label: 'New research run', href: '/runs/new' }}
           />
         ) : (
           <>

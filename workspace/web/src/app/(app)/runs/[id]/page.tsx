@@ -35,7 +35,7 @@ import {
   formatRunReference,
   shortId,
 } from '@/lib/formatters';
-import { auditActionLabel, eventTypeLabel, policyRuleLabel, runStatusMeta } from '@/lib/status';
+import { auditActionLabel, eventTypeLabel, policyRuleFailureLabel, runStatusMeta } from '@/lib/status';
 
 export default function RunDetailPage() {
   const params = useParams<{ id: string }>();
@@ -508,8 +508,7 @@ export default function RunDetailPage() {
                     </div>
                     {record.metadata && 'denyReasons' in record.metadata ? (
                       <p className="text-xs text-secondary">
-                        Deny reasons:{' '}
-                        {(record.metadata.denyReasons as string[]).map((reason) => policyRuleLabel(reason)).join(', ')}
+                        Denied because {(record.metadata.denyReasons as string[]).map((reason) => policyRuleFailureLabel(reason)).join('; ')}
                       </p>
                     ) : null}
                   </li>

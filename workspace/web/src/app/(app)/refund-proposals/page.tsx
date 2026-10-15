@@ -10,6 +10,8 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableWrapper } from '@/components/ui/table';
 import { ApprovalStatusBadge, ProposalStatusBadge } from '@/components/data-display/status-badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
+import { OwnerScopedListNotice } from '@/components/data-display/scope-notice';
+import { useSession } from '@/features/auth/session-provider';
 import { Pagination, pageCountFor, pageSlice } from '@/components/data-display/pagination';
 import { useRuns, useRunHistories } from '@/features/runs/hooks';
 import { runsWithApprovalHistory } from '@/features/runs/aggregate';
@@ -27,6 +29,7 @@ const STATUSES = ['REQUIRES_APPROVAL', 'POLICY_DENIED', 'APPROVED', 'REJECTED', 
  * shows the happy path.
  */
 export default function RefundProposalsPage() {
+  const { role } = useSession();
   const [status, setStatus] = useState<string>('ALL');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -53,6 +56,13 @@ export default function RefundProposalsPage() {
 
       {runsQuery.isError ? (
         <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} title="The run list could not be loaded" />
+      ) : null}
+
+      {role === 'APPROVER' ? (
+        <OwnerScopedListNotice
+          view="Refund Proposals"
+          alternative={{ label: 'open the proposal from the approval you are reviewing', href: '/approvals' }}
+        />
       ) : null}
 
       <Card>

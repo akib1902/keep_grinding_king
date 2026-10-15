@@ -79,6 +79,34 @@ npm run demo -- --reject       # reject instead: no settlement is created
 | `npm run demo` | Live HTTP demonstration of the full journey |
 | `npm run test` / `test:integration` / `test:e2e` / `test:all` | Vitest suites |
 | `npm run verify` | Typecheck + full test suite |
+| `npm run web:install` / `web:dev` / `web:build` | Install, run and build the web console |
+| `npm run web:typecheck` / `web:test` / `verify:web` | Frontend typecheck, unit tests, both |
+
+## Web console
+
+`web/` is a Next.js console (React, TypeScript, Tailwind, TanStack Query) that
+implements `FDD.md` against this API. It submits research runs, follows execution
+over the durable event stream, renders evidence and policy decisions, records
+approvals and reads the simulated ledger.
+
+```bash
+npm run web:install
+npm run web:dev        # http://127.0.0.1:3000
+```
+
+The console calls the API from the browser, so the API must accept its origin and
+its event stream:
+
+```
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+ENABLE_DEV_TOKENS=true
+```
+
+The stream header carries the CORS headers Fastify set before the SSE handler takes
+over the socket — without that, a browser cannot read the stream at all. See
+[web/README.md](web/README.md) for the routes, architecture and known limitations
+(the API exposes approvals, proposals and settlements individually, so list views
+join them from each run's history).
 
 ## API
 
@@ -198,6 +226,7 @@ prisma/       schema + migrations (including append-only ledger guards)
 scripts/      seed, demo, infra wait, test-db prepare
 tests/        unit / integration / e2e
 docs/         ARCHITECTURE.md, API.md
+web/          Next.js console (FDD.md): src/app, components, features, lib, tests
 ```
 
 ## Requirements coverage

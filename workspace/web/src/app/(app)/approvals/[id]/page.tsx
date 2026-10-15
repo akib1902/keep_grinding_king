@@ -20,7 +20,7 @@ import { useProposal } from '@/features/proposals/hooks';
 import { useRun } from '@/features/runs/hooks';
 import { ApiError } from '@/lib/errors';
 import { formatDateTime, formatEvidenceValue, formatMoney, shortId } from '@/lib/formatters';
-import { policyRuleLabel } from '@/lib/status';
+import { policyRuleFailureLabel } from '@/lib/status';
 
 /**
  * Approval detail (FDD §7.6).
@@ -207,7 +207,7 @@ export default function ApprovalDetailPage() {
                   <PolicyCheckList checks={proposal.policy.checks} className="mt-2" />
                   {proposal.policy.denyReasons.length > 0 ? (
                     <Alert tone="danger" role="alert" className="mt-3" title="Policy deny reasons">
-                      {proposal.policy.denyReasons.map((reason) => policyRuleLabel(reason)).join(', ')}
+                      Denied because {proposal.policy.denyReasons.map((reason) => policyRuleFailureLabel(reason)).join('; ')}.
                     </Alert>
                   ) : null}
                 </div>
