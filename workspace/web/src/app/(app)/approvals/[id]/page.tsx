@@ -11,7 +11,7 @@ import { CardSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CopyableId, DefinitionList } from '@/components/data-display/definition-list';
 import { PolicyCheckList } from '@/components/data-display/policy-checks';
-import { ApprovalStatusBadge, ProposalStatusBadge, RunStatusBadge } from '@/components/data-display/status-badge';
+import { ApprovalStatusBadge, RunStatusBadge } from '@/components/data-display/status-badge';
 import { EmptyState, ErrorState } from '@/components/data-display/states';
 import { DecisionPanel } from '@/features/approvals/components/decision-panel';
 import { useSession } from '@/features/auth/session-provider';
@@ -88,8 +88,9 @@ export default function ApprovalDetailPage() {
         meta={
           <>
             <ApprovalStatusBadge status={approval.status} />
-            {proposal ? <ProposalStatusBadge status={proposal.status} /> : null}
-            {run ? <RunStatusBadge status={run.status} /> : null}
+            <span className="text-sm text-muted">
+              Proposal revision <span className="tnum font-mono text-secondary">{approval.proposalRevision}</span>
+            </span>
           </>
         }
         description={
@@ -105,7 +106,7 @@ export default function ApprovalDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheck aria-hidden="true" className="size-4 text-muted" />
+                <ShieldCheck aria-hidden="true" className={approval.status === 'PENDING' ? 'size-4 text-warning' : 'size-4 text-muted'} />
                 Proposal summary
               </CardTitle>
               <Badge tone="warning">{approval.reviewed.policyOutcome}</Badge>
@@ -155,6 +156,11 @@ export default function ApprovalDetailPage() {
                   <EmptyState
                     title="The run's research report is not readable by your role"
                     description="The backend authorises this approval to you but keeps the underlying run scoped to its owner, so the report's findings cannot be cross-referenced here. The proposal's own recorded evidence references below are the supporting detail for your decision."
+                  />
+                ) : !run.result?.report ? (
+                  <EmptyState
+                    title="The research report is not written yet"
+                    description="This run pauses for approval before it finalises its report, so there is no report finding to cross-reference. The proposal's own recorded evidence references below are what the rules produced for this transaction."
                   />
                 ) : (
                   <EmptyState

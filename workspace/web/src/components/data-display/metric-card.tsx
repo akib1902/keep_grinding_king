@@ -29,13 +29,18 @@ export function MetricCard({
   const body = (
     <>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted">{label}</p>
+        <p className="text-[15px] text-muted">{label}</p>
         {icon ? <span className="text-muted">{icon}</span> : null}
       </div>
-      <p className={cn('tnum text-2xl font-semibold', unavailable ? 'text-muted' : 'text-foreground')}>
+      <p
+        className={cn(
+          'tnum font-semibold',
+          unavailable ? 'text-lg leading-tight text-muted' : 'text-[28px] leading-tight text-foreground',
+        )}
+      >
         {unavailable ? unavailableLabel : value}
       </p>
-      <div className="flex min-h-5 items-center gap-2 text-xs text-muted">
+      <div className="flex min-h-5 items-center gap-2 text-[13px] text-muted">
         {hint}
         {href ? <ArrowRight aria-hidden="true" className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" /> : null}
       </div>

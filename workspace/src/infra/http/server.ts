@@ -178,11 +178,15 @@ export function buildServer(deps: ServerDeps): ServerHandle {
   if (devTokensEnabled) {
     app.post('/api/auth/dev-token', async (request, reply) => {
       const body = DevTokenSchema.parse(request.body ?? {});
-      const subject = body.subject ?? `local:${body.role.toLowerCase()}:${body.email ?? 'default'}`;
+      // The default subject is derived from the default email so that a caller
+      // that omits both resolves to one stable local user instead of minting a
+      // second row that collides with the seeded (tenant, email) pair.
+      const email = body.email ?? `${body.role.toLowerCase()}@example.test`;
+      const subject = body.subject ?? `local:${body.role.toLowerCase()}:${email}`;
       const user = await store.users.upsert({
         tenantId: body.tenantId,
         subject,
-        email: body.email ?? `${body.role.toLowerCase()}@example.test`,
+        email,
         name: body.name ?? `${body.role} (local)`,
         role: body.role,
       });

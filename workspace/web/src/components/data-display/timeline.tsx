@@ -10,7 +10,7 @@ export interface TimelineEntry {
   id: string;
   title: string;
   status: string;
-  /** Right-aligned metadata, e.g. a duration or tool name. */
+  /** Secondary metadata, e.g. a tool name or duration. */
   meta?: string;
   timestamp?: string | null;
   description?: ReactNode;
@@ -41,14 +41,14 @@ const ICON_CLASS = {
 export function ExecutionTimeline({ entries, className }: { entries: readonly TimelineEntry[]; className?: string }) {
   return (
     <ol className={cn('flex flex-col', className)}>
-      {entries.map((entry, index) => (
-        <TimelineRow key={entry.id} entry={entry} last={index === entries.length - 1} />
+      {entries.map((entry) => (
+        <TimelineRow key={entry.id} entry={entry} />
       ))}
     </ol>
   );
 }
 
-function TimelineRow({ entry, last }: { entry: TimelineEntry; last: boolean }) {
+function TimelineRow({ entry }: { entry: TimelineEntry }) {
   const [open, setOpen] = useState(false);
   const detailId = useId();
   const meta = stepStatusMeta(entry.status);
@@ -57,40 +57,45 @@ function TimelineRow({ entry, last }: { entry: TimelineEntry; last: boolean }) {
   const hasDetail = entry.detail !== undefined && entry.detail !== null;
 
   return (
-    <li className="flex gap-3">
-      <div className="flex flex-col items-center pt-0.5">
-        <Icon aria-hidden="true" className={cn('size-4 shrink-0', ICON_CLASS[tone])} />
-        {!last ? <span aria-hidden="true" className="mt-1 w-px flex-1 bg-border" /> : null}
-      </div>
-      <div className={cn('flex min-w-0 flex-1 flex-col gap-1', last ? 'pb-0' : 'pb-5')}>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-sm font-medium text-foreground">{entry.title}</p>
-          {entry.meta ? <p className="tnum text-xs text-muted">{entry.meta}</p> : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-          {/* The label is always rendered, so the state is not colour-only. */}
-          <span>{meta.label}</span>
-          {entry.timestamp ? <time dateTime={entry.timestamp}>{formatDateTime(entry.timestamp)}</time> : null}
-        </div>
-        {entry.description ? <div className="text-sm text-secondary">{entry.description}</div> : null}
-        {hasDetail ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setOpen((value) => !value)}
-              aria-expanded={open}
-              aria-controls={detailId}
-              className="inline-flex w-fit items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-foreground"
-            >
-              <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform', open && 'rotate-180')} />
-              {open ? 'Hide technical detail' : 'Show technical detail'}
-            </button>
-            {open ? (
-              <div id={detailId} className="mt-1 rounded-md border border-border bg-surface-muted px-3 py-2">
-                {entry.detail}
-              </div>
+    <li className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+      <Icon aria-hidden="true" className={cn('mt-0.5 size-[18px] shrink-0', ICON_CLASS[tone])} />
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <p className="text-[15px] leading-6 font-semibold text-foreground">{entry.title}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+            {/* The label is always rendered, so the state is not colour-only. */}
+            <span>{meta.label}</span>
+            {entry.meta ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="tnum">{entry.meta}</span>
+              </>
             ) : null}
-          </>
+            {entry.timestamp ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <time dateTime={entry.timestamp}>{formatDateTime(entry.timestamp)}</time>
+              </>
+            ) : null}
+          </div>
+          {entry.description ? <div className="mt-1 text-[13px] text-secondary">{entry.description}</div> : null}
+          {open && hasDetail ? (
+            <div id={detailId} className="mt-2 rounded-lg border border-border bg-surface-muted px-3 py-2">
+              {entry.detail}
+            </div>
+          ) : null}
+        </div>
+        {hasDetail ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            aria-controls={detailId}
+            className="grid size-7 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted transition-colors hover:border-border-strong hover:text-foreground"
+          >
+            <ChevronDown aria-hidden="true" className={cn('size-4 transition-transform', open && 'rotate-180')} />
+            <span className="sr-only">{open ? 'Hide technical detail' : 'Show technical detail'}</span>
+          </button>
         ) : null}
       </div>
     </li>

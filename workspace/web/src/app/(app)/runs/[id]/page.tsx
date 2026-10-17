@@ -23,7 +23,7 @@ import { useCancelRun, useRun, useRunAudit, useRunEvents, useRunHistory, useRunS
 import { useRunEventStream } from '@/features/runs/stream';
 import { RunProgress } from '@/features/runs/components/run-progress';
 import { LiveStatusBar } from '@/features/runs/components/live-status';
-import { eventOutcomeStatus, mergeRunEvents } from '@/features/runs/aggregate';
+import { analysisWindowLabel, eventOutcomeStatus, mergeRunEvents, runHeadline } from '@/features/runs/aggregate';
 import { isLiveRun } from '@/features/runs/api';
 import { ApiError, describeApiError } from '@/lib/errors';
 import {
@@ -114,13 +114,13 @@ export default function RunDetailPage() {
     );
   }
 
-  const taskSummary = run.request.task.length > 120 ? `${run.request.task.slice(0, 119)}…` : run.request.task;
+  const windowLabel = analysisWindowLabel(run.request.from, run.request.to);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         breadcrumbs={[{ label: 'Research Runs', href: '/runs' }, { label: formatRunReference(run.runId) }]}
-        title={taskSummary}
+        title={runHeadline(run)}
         meta={
           <>
             <RunStatusBadge status={run.status} />
@@ -132,7 +132,8 @@ export default function RunDetailPage() {
         }
         description={
           <span>
-            Analysis window {run.request.from} → {run.request.to} · {run.request.currency} · task type{' '}
+            {windowLabel ? `${windowLabel} · ` : ''}
+            {run.request.from} → {run.request.to} · {run.request.currency} · task type{' '}
             <code className="font-mono">{run.taskType}</code> · policy {run.policyVersion}
           </span>
         }
@@ -172,7 +173,7 @@ export default function RunDetailPage() {
 
       <LiveStatusBar state={stream.state} liveEventCount={stream.liveEvents.length} />
 
-      <section aria-label="Run summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Run summary" className="grid gap-4 sm:grid-cols-2">
         <MetricCard
           label="Transactions analysed"
           // `null` while the report does not exist yet; the report is the only
@@ -205,32 +206,28 @@ export default function RunDetailPage() {
       </section>
 
       {pendingApproval ? (
-        <Card className="border-warning-border">
-          <CardHeader>
+        <Card className="border-warning-border bg-surface-muted">
+          <CardHeader className="border-warning-border">
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck aria-hidden="true" className="size-4 text-warning" />
               Pending decision
             </CardTitle>
-            <ApprovalStatusBadge status={pendingApproval.approval.status} />
+            <span className="text-xs text-muted">Expires {formatDateTime(pendingApproval.approval.expiresAt)}</span>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <p className="text-xs text-muted">Supplier refund proposal · policy {pendingApproval.proposal?.policyVersion ?? '—'}</p>
-              <p className="tnum text-3xl font-semibold text-foreground">
+              <p className="text-sm text-muted">Supplier refund proposal · policy {pendingApproval.proposal?.policyVersion ?? '—'}</p>
+              <p className="tnum text-[32px] leading-tight font-semibold text-foreground">
                 {pendingApproval.proposal ? formatMoney(pendingApproval.proposal.amountMinor, pendingApproval.proposal.currency) : 'Amount unavailable'}
               </p>
-              <p className="text-sm text-muted">
-                The configured policy requires approval for this amount (
-                {pendingApproval.proposal?.policyOutcome === 'REQUIRES_APPROVAL'
-                  ? 'outcome REQUIRES_APPROVAL'
-                  : pendingApproval.proposal?.policyOutcome ?? 'policy outcome unavailable'}
-                ). Settlement has not occurred and will not, until a decision is recorded and settlement commits separately.
+              <p className="text-sm text-secondary">
+                The configured policy requires approval for this amount. Approval and settlement are separate steps, and nothing has settled.
               </p>
             </div>
 
-            <div className="rounded-md border border-border bg-surface-muted px-4 py-3">
-              <p className="text-sm font-medium text-foreground">Next step</p>
-              <p className="text-sm text-muted">
+            <div className="rounded-lg border border-border bg-surface px-4 py-3">
+              <p className="text-sm font-semibold text-foreground">Next step</p>
+              <p className="mt-0.5 text-sm text-muted">
                 Review the supporting transaction evidence and open the approval request to record a decision.
               </p>
             </div>
@@ -250,8 +247,12 @@ export default function RunDetailPage() {
                   Inspect the proposal
                 </Link>
               ) : null}
-              <span className="text-xs text-muted">Decision expires {formatDateTime(pendingApproval.approval.expiresAt)}.</span>
             </div>
+
+            <p className="text-xs text-muted">
+              The supplier, amount and currency are recorded on the proposal; the backend revalidates them and your permissions when the decision is
+              submitted.
+            </p>
           </CardContent>
         </Card>
       ) : null}

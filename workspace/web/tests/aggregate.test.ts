@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  analysisWindowLabel,
   filterRuns,
   mergeRunEvents,
+  runHeadline,
   runDurationMs,
   runRequestSummary,
   runsWithApprovalHistory,
@@ -452,5 +454,33 @@ describe('audit rows', () => {
 
   it('lists the actor types actually present', () => {
     expect(distinctActorTypes(buildAuditRows(entries))).toEqual(['AGENT', 'USER']);
+  });
+});
+
+describe('run headline', () => {
+  it('names a window that covers exactly one calendar quarter', () => {
+    expect(analysisWindowLabel('2026-07-01', '2026-09-30')).toBe('Q3 2026');
+    expect(analysisWindowLabel('2026-01-01', '2026-03-31')).toBe('Q1 2026');
+    expect(analysisWindowLabel('2026-10-01', '2026-12-31')).toBe('Q4 2026');
+  });
+
+  it('falls back to the literal range when the window is not a quarter', () => {
+    expect(analysisWindowLabel('2026-07-05', '2026-09-30')).toBe('2026-07-05 → 2026-09-30');
+    expect(analysisWindowLabel('2026-07-01', '2026-09-29')).toBe('2026-07-01 → 2026-09-29');
+    expect(analysisWindowLabel('2026-07-01', '2026-10-31')).toBe('2026-07-01 → 2026-10-31');
+  });
+
+  it('refuses to label a date that does not exist', () => {
+    expect(analysisWindowLabel('2026-02-31', '2026-03-31')).toBeNull();
+    expect(analysisWindowLabel(undefined, '2026-03-31')).toBeNull();
+  });
+
+  it('builds the headline from recorded request fields only', () => {
+    expect(runHeadline(run())).toBe('Q3 2026 spending analysis');
+    expect(runHeadline(run({ taskType: 'SUPPLIER_DISCREPANCY_REVIEW' }))).toBe(
+      'Q3 2026 supplier discrepancy review',
+    );
+    const unbounded = run({ request: { ...run().request, from: '2026-08-01', to: '2026-08-31' } });
+    expect(runHeadline(unbounded)).toBe('2026-08-01 → 2026-08-31 spending analysis');
   });
 });

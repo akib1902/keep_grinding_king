@@ -88,6 +88,11 @@ Events are de-duplicated by id, the last id is sent back as `Last-Event-ID` on
 reconnect, and every batch of events also invalidates the run queries. A dropped
 connection therefore degrades to polling, and is never presented as a run failure.
 
+**A run is titled from its request, not from its prompt.** The page heading is a
+short label derived from the recorded window and task type ("Q3 2026 spending
+analysis"), so a run is scannable without truncating a paragraph into a heading;
+the full request text stays visible in the run summary panel.
+
 **Only the backend decides.** No screen marks a proposal authorised or settled.
 An approval and a settlement are separate panels with separate statuses, and the
 approval confirmation restates the exact supplier, amount, currency and proposal

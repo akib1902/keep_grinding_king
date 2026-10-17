@@ -41,6 +41,55 @@ export function summarizeRuns(runs: readonly Run[]): RunSummary {
   return summary;
 }
 
+/** Parses a `YYYY-MM-DD` request date as UTC, rejecting impossible dates. */
+function parseIsoDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const roundTrips =
+    date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day);
+  return roundTrips ? date : null;
+}
+
+/**
+ * Label for the analysis window: `Q3 2026` when the request covers exactly one
+ * calendar quarter, otherwise the literal range. Derived from the recorded
+ * request dates, never guessed from the task text.
+ */
+export function analysisWindowLabel(from: string | undefined, to: string | undefined): string | null {
+  if (!from || !to) return null;
+  const start = parseIsoDate(from);
+  const end = parseIsoDate(to);
+  if (!start || !end) return null;
+  if (start.getUTCDate() !== 1 || start.getUTCMonth() % 3 !== 0) return `${from} → ${to}`;
+  if (end.getUTCFullYear() !== start.getUTCFullYear() || end.getUTCMonth() !== start.getUTCMonth() + 2) {
+    return `${from} → ${to}`;
+  }
+  const lastDayOfQuarter = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+  return end.getUTCDate() === lastDayOfQuarter
+    ? `Q${start.getUTCMonth() / 3 + 1} ${start.getUTCFullYear()}`
+    : `${from} → ${to}`;
+}
+
+const TASK_PURPOSE: Record<string, string> = {
+  SPEND_ANOMALY_RESEARCH: 'spending analysis',
+  SUPPLIER_DISCREPANCY_REVIEW: 'supplier discrepancy review',
+};
+
+/**
+ * Short human headline for a run, e.g. "Q3 2026 spending analysis".
+ *
+ * A page heading is not the place for a truncated prompt: the full request text
+ * stays visible in the run summary, and this label is built only from recorded
+ * request fields so the console never invents a title.
+ */
+export function runHeadline(run: Pick<Run, 'taskType' | 'request'>): string {
+  const purpose = TASK_PURPOSE[run.taskType] ?? 'research run';
+  const window = analysisWindowLabel(run.request?.from, run.request?.to);
+  return window ? `${window} ${purpose}` : purpose.charAt(0).toUpperCase() + purpose.slice(1);
+}
+
 /** Request text used as a table's "request summary" column. */
 export function runRequestSummary(run: Run, maxLength = 90): string {
   const task = run.request?.task ?? '';

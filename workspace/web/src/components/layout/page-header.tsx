@@ -43,7 +43,7 @@ export function PageHeader({ title, breadcrumbs, meta, description, actions, cla
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
+          <h2 className="text-[28px] leading-tight font-semibold tracking-tight text-foreground">{title}</h2>
           {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
           {description ? <div className="max-w-3xl text-sm text-muted">{description}</div> : null}
         </div>
