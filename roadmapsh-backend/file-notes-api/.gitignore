@@ -1,0 +1,4 @@
+node_modules/
+.env
+data/notes.json
+data/notes.json.tmp
