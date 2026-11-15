@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>scraperStack · Dashboard</title>
+  <link rel="stylesheet" href="../shared/theme.css">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <img src="../icons/icon32.png" alt="" width="28" height="28">
+        <div class="side-brand-text">
+          <strong>scraperStack</strong>
+          <span>workspace</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <button type="button" class="nav-item active" data-nav="overview"><span data-icon="grid"></span> Overview</button>
+        <button type="button" class="nav-item" data-nav="recipes"><span data-icon="layers"></span> Recipes <b id="navRecipes">0</b></button>
+        <button type="button" class="nav-item" data-nav="datasets"><span data-icon="database"></span> Datasets <b id="navDatasets">0</b></button>
+      </nav>
+
+      <div class="side-sep"></div>
+
+      <a class="nav-item link" href="../options/index.html"><span data-icon="sliders"></span> Settings</a>
+
+      <div class="side-foot">
+        <div class="storage-line">
+          <span data-icon="database"></span>
+          <span>Local data</span>
+          <b id="storageMini">—</b>
+        </div>
+        <button type="button" class="btn primary block" id="btnPanel"><span data-icon="crosshair"></span> Open scraper</button>
+        <p class="side-hint">The side panel stays open while you click around the page.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <div class="main-title">
+          <h1 id="pageTitle">Overview</h1>
+          <p id="pageSub">Recipes, datasets and everything you have collected.</p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn" id="btnExportBackup"><span data-icon="download"></span> Export backup</button>
+          <button type="button" class="btn primary" id="btnPanelTop"><span data-icon="crosshair"></span> Open scraper</button>
+        </div>
+      </header>
+
+      <div class="welcome" id="welcome" hidden>
+        <div class="welcome-icon"><span data-icon="sparkles" data-size="18"></span></div>
+        <div class="welcome-copy">
+          <strong>Welcome to scraperStack</strong>
+          <p>Open any page, click the toolbar icon, pick one repeated item, and let auto-detect map the fields. Everything you collect stays on this computer.</p>
+          <div class="welcome-steps">
+            <span><b>1</b> Open a page</span>
+            <span><b>2</b> Pick an item</span>
+            <span><b>3</b> Run &amp; export</span>
+          </div>
+        </div>
+        <button type="button" class="btn sm ghost" id="btnDismissWelcome">Got it</button>
+      </div>
+
+      <!-- OVERVIEW -->
+      <section class="section" id="sectionOverview">
+        <div class="stats" id="stats"></div>
+
+        <div class="split">
+          <div class="card">
+            <div class="card-head">
+              <h2>Recent runs</h2>
+              <button type="button" class="btn sm ghost" data-nav="datasets">View all <span data-icon="arrowRight"></span></button>
+            </div>
+            <div id="recentList"></div>
+          </div>
+
+          <div class="card quick">
+            <div class="card-head"><h2>Quick start</h2></div>
+            <div class="card-body">
+              <ol class="quick-steps">
+                <li><span class="num">1</span><div><b>Open a page</b><p>Any http(s) page with a list, cards, or a table.</p></div></li>
+                <li><span class="num">2</span><div><b>Open the side panel</b><p>Click the scraperStack icon, or press <span class="kbd">Ctrl+Shift+Y</span>.</p></div></li>
+                <li><span class="num">3</span><div><b>Pick one repeated item</b><p>scraperStack suggests fields, pagination and all.</p></div></li>
+                <li><span class="num">4</span><div><b>Run and export</b><p>CSV, JSON, or copy straight into a sheet.</p></div></li>
+              </ol>
+              <button type="button" class="btn primary block" id="btnPanelQuick">Open the scraper</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Saved recipes</h2>
+            <button type="button" class="btn sm ghost" data-nav="recipes">Manage <span data-icon="arrowRight"></span></button>
+          </div>
+          <div id="overviewRecipes"></div>
+        </div>
+      </section>
+
+      <!-- RECIPES -->
+      <section class="section" id="sectionRecipes" hidden>
+        <div class="toolbar">
+          <div class="input-wrap search">
+            <span class="search-ico" data-icon="search"></span>
+            <input class="input" id="recipeSearch" placeholder="Filter recipes…" autocomplete="off">
+          </div>
+          <div class="row">
+            <button type="button" class="btn" id="btnImportRecipes"><span data-icon="upload"></span> Import</button>
+            <button type="button" class="btn primary" id="btnNewRecipe"><span data-icon="plus"></span> New in panel</button>
+          </div>
+        </div>
+        <div class="card" id="recipeTable"></div>
+      </section>
+
+      <!-- DATASETS -->
+      <section class="section" id="sectionDatasets" hidden>
+        <div class="toolbar">
+          <div class="input-wrap search">
+            <span class="search-ico" data-icon="search"></span>
+            <input class="input" id="datasetSearch" placeholder="Filter datasets…" autocomplete="off">
+          </div>
+          <div class="row">
+            <button type="button" class="btn danger" id="btnClearDatasets"><span data-icon="trash"></span> Clear all</button>
+            <button type="button" class="btn" id="btnExportAll"><span data-icon="download"></span> Export backup</button>
+          </div>
+        </div>
+        <div class="dataset-grid" id="datasetList"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-stack" id="toasts"></div>
+
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <span class="modal-title" id="modalTitle">Detail</span>
+        <button type="button" class="icon-btn" id="modalClose" aria-label="Close"><span data-icon="x"></span></button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>
+
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="../shared/icons.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

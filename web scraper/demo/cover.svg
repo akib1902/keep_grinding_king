@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" role="img" aria-label="Abstract book cover">
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c5cf0"/>
+      <stop offset="0.52" stop-color="#4f3aa8"/>
+      <stop offset="1" stop-color="#16122e"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f7e8c8"/>
+      <stop offset="1" stop-color="#efd7a8"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="420" fill="url(#cover)"/>
+  <circle cx="226" cy="108" r="62" fill="url(#sun)" opacity="0.94"/>
+  <path d="M0 296C58 262 110 318 176 292c46-18 84-16 124-2v130H0Z" fill="#12102a" opacity="0.72"/>
+  <path d="M0 322c66-26 116 18 174 2 54-15 88-10 126 2v94H0Z" fill="#0c0a20" opacity="0.6"/>
+  <g stroke="#f7e8c8" stroke-width="2" opacity="0.85">
+    <path d="M34 58h104"/>
+    <path d="M34 68h62"/>
+  </g>
+  <g fill="#f7e8c8" opacity="0.92">
+    <rect x="34" y="330" width="120" height="4" rx="2"/>
+    <rect x="34" y="344" width="86" height="4" rx="2"/>
+    <rect x="34" y="358" width="52" height="4" rx="2"/>
+  </g>
+</svg>

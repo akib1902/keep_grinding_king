@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>scraperStack · Settings</title>
+  <link rel="stylesheet" href="../shared/theme.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="opt-head">
+      <div class="brand-block">
+        <img src="../icons/icon48.png" alt="" width="38" height="38">
+        <div>
+          <h1>Settings</h1>
+          <p>Defaults for new recipes, runs and the workspace.</p>
+        </div>
+      </div>
+      <div class="row">
+        <span class="badge green" id="savedState" hidden><span class="dot"></span> Saved</span>
+        <a class="btn" href="../dashboard/index.html"><span data-icon="grid"></span> Dashboard</a>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card span-2">
+        <div class="card-head">
+          <h2>Capture defaults</h2>
+          <span class="hint">Used unless a recipe overrides them</span>
+        </div>
+        <div class="card-body settings">
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Pages per run</b>
+              <p>Largest pagination depth. Each recipe can ask for fewer.</p>
+            </div>
+            <input class="input num" id="maxPages" type="number" min="1" max="50" step="1">
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Delay between pages</b>
+              <p>Milliseconds to wait after a page advances. Higher is gentler on sites.</p>
+            </div>
+            <input class="input num" id="pageDelayMs" type="number" min="0" max="8000" step="100">
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Minimum wait for content</b>
+              <p>How long to wait for items to appear before extracting.</p>
+            </div>
+            <input class="input num" id="pageWaitMs" type="number" min="500" max="15000" step="100">
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Rows per run</b>
+              <p>Hard cap on rows collected in one scrape.</p>
+            </div>
+            <input class="input num" id="maxRows" type="number" min="10" max="10000" step="100">
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Rows kept per dataset</b>
+              <p>Older rows are trimmed when a dataset is saved.</p>
+            </div>
+            <input class="input num" id="maxStoredRows" type="number" min="100" max="20000" step="100">
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Skip duplicate rows</b>
+              <p>Drop rows whose field values exactly match an earlier row.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="dedupe"><span class="track"></span></label>
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Stop on an unchanged page</b>
+              <p>End pagination when a page adds no new rows.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="stopWhenNoNew"><span class="track"></span></label>
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Keep empty rows</b>
+              <p>Save rows where every field came back empty.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="includeEmptyRows"><span class="track"></span></label>
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Confirm before deleting</b>
+              <p>Ask before removing recipes or datasets.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="confirmDelete"><span class="track"></span></label>
+          </div>
+          <div class="setting">
+            <div class="setting-copy">
+              <b>Open the dashboard after install</b>
+              <p>Show the workspace tab the first time the extension is added.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="openDashboardOnInstall"><span class="track"></span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Appearance</h2></div>
+        <div class="card-body">
+          <div class="segmented theme-picker" id="themePicker">
+            <button type="button" data-theme-choice="auto"><span data-icon="globe"></span> Auto</button>
+            <button type="button" data-theme-choice="dark"><span data-icon="moon"></span> Dark</button>
+            <button type="button" data-theme-choice="light"><span data-icon="sun"></span> Light</button>
+          </div>
+          <p class="hint mt">Auto follows the operating system. The panel, dashboard and this page all use the same setting.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Data</h2></div>
+        <div class="card-body stack">
+          <div class="data-row">
+            <span>Local data used</span>
+            <b id="usage" class="mono">—</b>
+          </div>
+          <div class="data-row">
+            <span>Workspace</span>
+            <b id="dataCounts" class="mono">—</b>
+          </div>
+          <div class="divider"></div>
+          <button type="button" class="btn block" id="btnExportBackup"><span data-icon="download"></span> Export backup</button>
+          <button type="button" class="btn block" id="btnImport"><span data-icon="upload"></span> Import backup</button>
+          <button type="button" class="btn danger block" id="btnClearDatasets"><span data-icon="trash"></span> Clear all datasets</button>
+          <button type="button" class="btn danger block" id="btnReset"><span data-icon="alert"></span> Reset everything</button>
+          <p class="hint">Recipes, datasets, drafts and settings live in <code>chrome.storage.local</code>. Nothing leaves this computer.</p>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <div class="card-head"><h2>About scraperStack</h2></div>
+        <div class="card-body about">
+          <div class="about-grid">
+            <div class="about-item">
+              <span class="label">Version</span>
+              <b class="mono" id="version">1.0.0</b>
+            </div>
+            <div class="about-item">
+              <span class="label">Shortcut</span>
+              <span class="row"><span class="kbd">Ctrl+Shift+Y</span><button type="button" class="btn sm ghost" id="btnShortcuts">Copy settings URL</button></span>
+            </div>
+            <div class="about-item">
+              <span class="label">Build</span>
+              <b>Manifest V3 · no bundler · no dependencies</b>
+            </div>
+          </div>
+
+          <div class="hr-note">Permissions used</div>
+          <ul class="perm-list">
+            <li><b>Read page content</b><span>Only the page you invoke the picker on, to find and extract elements.</span></li>
+            <li><b>Scripting + active tab</b><span>Injects the picker into the page you are viewing, and re-attaches it after a reload.</span></li>
+            <li><b>Side panel</b><span>Keeps the builder open while you click elements on the page.</span></li>
+            <li><b>Storage + unlimited storage</b><span>Saves recipes and datasets locally. No account, no server.</span></li>
+            <li><b>Context menus + tabs</b><span>Adds "Scrape this page" to the right-click menu and knows which tab to act on.</span></li>
+          </ul>
+
+          <div class="callout violet">
+            <span class="ico" data-icon="info"></span>
+            <span>scraperStack makes no analytics or network calls of its own. The only requests it sends are to the same site you are scraping, when you choose the "follow next link" strategy.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="opt-foot">
+      <span>scraperStack · local-first web scraping</span>
+      <a href="../dashboard/index.html">Back to dashboard</a>
+    </footer>
+  </div>
+
+  <div class="toast-stack" id="toasts"></div>
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../shared/ui.js"></script>
+  <script src="../shared/icons.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

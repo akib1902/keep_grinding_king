@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper &amp; Pine · New arrivals</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body data-page="loadmore">
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">P&amp;P</span>
+      <span class="brand-name">Paper &amp; Pine</span>
+    </a>
+    <nav class="nav">
+      <a href="shop.html">Shop</a>
+      <a href="table.html">Library</a>
+      <a href="loadmore.html">New arrivals</a>
+      <a href="index.html">Playground</a>
+    </nav>
+    <span class="top-note">demo data</span>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Fresh off the press</p>
+        <h1>New arrivals,<br><em>loaded quietly.</em></h1>
+        <p class="lede">This page appends six more cards each time you press the button. Use the "Click load more" pagination strategy and watch the row count grow.</p>
+      </div>
+      <div class="hero-side">
+        <dl>
+          <dt>Strategy</dt><dd>Load more</dd>
+          <dt>Selector</dt><dd><span class="code-inline">#load-more</span></dd>
+          <dt>Batches</dt><dd>6 → 12 cards</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="collection" aria-labelledby="arrivals-title">
+      <div class="section-head">
+        <h2 id="arrivals-title">Latest titles</h2>
+        <p class="result-count" id="result-count">6 of 18 books</p>
+      </div>
+
+      <div class="product-grid" id="catalogue"></div>
+
+      <div class="loadmore-row">
+        <button type="button" class="load-more" id="load-more">Load 6 more books</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Paper &amp; Pine — a fictional shop for testing scraperStack.</span>
+    <span><a href="shop.html">Shop</a> · <a href="table.html">Library</a> · <a href="index.html">Playground</a></span>
+  </footer>
+
+  <script src="demo.js"></script>
+</body>
+</html>

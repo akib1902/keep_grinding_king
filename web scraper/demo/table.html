@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper &amp; Pine · Library</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body data-page="table">
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">P&amp;P</span>
+      <span class="brand-name">Paper &amp; Pine</span>
+    </a>
+    <nav class="nav">
+      <a href="shop.html">Shop</a>
+      <a href="table.html">Library</a>
+      <a href="loadmore.html">New arrivals</a>
+      <a href="index.html">Playground</a>
+    </nav>
+    <span class="top-note">demo data</span>
+  </header>
+
+  <main class="page">
+    <section class="hero solo">
+      <p class="eyebrow">Reading room · catalogue</p>
+      <h1>The library<br><em>table.</em></h1>
+      <p class="lede">A plain HTML table with a header row and eight records. Use the row selector <span class="code-inline">#library-table tbody tr</span> in scraperStack and map the cells.</p>
+    </section>
+
+    <section class="collection" aria-labelledby="library-title">
+      <div class="section-head">
+        <h2 id="library-title">Catalogue</h2>
+        <p class="result-count" id="table-count">8 titles</p>
+      </div>
+
+      <div class="table-card">
+        <table class="catalogue-table" id="library-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Year</th>
+              <th>Status</th>
+              <th>Shelf</th>
+            </tr>
+          </thead>
+          <tbody id="library-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Paper &amp; Pine — a fictional shop for testing scraperStack.</span>
+    <span><a href="shop.html">Shop</a> · <a href="index.html">Playground</a> · <a href="loadmore.html">New arrivals</a></span>
+  </footer>
+
+  <script src="demo.js"></script>
+</body>
+</html>

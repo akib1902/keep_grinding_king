@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper &amp; Pine · scraperStack playground</title>
+  <link rel="stylesheet" href="demo.css">
+  <style>
+    .code-inline {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.86em;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 1px 5px;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body data-page="index">
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">P&amp;P</span>
+      <span class="brand-name">Paper &amp; Pine</span>
+    </a>
+    <nav class="nav">
+      <a href="shop.html">Shop</a>
+      <a href="table.html">Library</a>
+      <a href="loadmore.html">New arrivals</a>
+      <a href="index.html">Playground</a>
+    </nav>
+    <span class="top-note">demo data</span>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">scraperStack playground</p>
+        <h1>A small shop,<br><em>made for scraping.</em></h1>
+        <p class="lede">Three deliberately different pages: a paginated card grid, a plain data table, and a load-more feed. Serve them locally, load the extension, and try a real recipe end to end.</p>
+        <div class="hero-actions">
+          <a class="btn-dark" href="shop.html">Open the shop</a>
+          <a class="btn-quiet" href="#recipes">See the recipes to try</a>
+        </div>
+      </div>
+      <div class="hero-side">
+        <dl>
+          <dt>Serve</dt><dd><span class="code-inline">node scripts/serve.mjs</span></dd>
+          <dt>Then open</dt><dd><span class="code-inline">localhost:4321/demo/</span></dd>
+          <dt>Extension</dt><dd>chrome://extensions → Load unpacked</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="demo-grid" aria-label="Demo pages">
+      <a class="demo-card" href="shop.html">
+        <span class="kicker">01 · Pagination</span>
+        <h3>Shop catalogue</h3>
+        <p>Eighteen books across three real pages. Next is a link, so both "click" and "follow link" strategies can be tested.</p>
+        <span class="code-chip">#catalogue &gt; article.product-card</span>
+      </a>
+      <a class="demo-card" href="table.html">
+        <span class="kicker">02 · Table</span>
+        <h3>Library table</h3>
+        <p>A classic header row and eight records. The simplest possible list-mode scrape, with relative cell selectors.</p>
+        <span class="code-chip">#library-table tbody tr</span>
+      </a>
+      <a class="demo-card" href="loadmore.html">
+        <span class="kicker">03 · Load more</span>
+        <h3>New arrivals</h3>
+        <p>Six cards now, six more per click. Tests the load-more strategy and duplicate detection across batches.</p>
+        <span class="code-chip">#load-more</span>
+      </a>
+    </section>
+
+    <section class="guide" id="recipes">
+      <h2>Recipes to try</h2>
+      <div class="guide-grid">
+        <ol class="steps">
+          <li><div><b>Start the local server.</b> Run <span class="code-inline">node scripts/serve.mjs</span> in the project root, then open <span class="code-inline">http://localhost:4321/demo/shop.html</span>.</div></li>
+          <li><div><b>Load the extension.</b> Visit <span class="code-inline">chrome://extensions</span>, turn on Developer mode, choose "Load unpacked", and select this folder.</div></li>
+          <li><div><b>Open the side panel.</b> Click the scraperStack icon. Name the recipe "Bookshop catalogue".</div></li>
+          <li><div><b>Pick the list.</b> Press <b>Pick item</b>, then click any book card. Auto-detect should map Title, Price, Image, Link and Rating.</div></li>
+          <li><div><b>Add pagination.</b> Enable it, pick the <span class="code-inline">Next →</span> link, set max pages to 3.</div></li>
+          <li><div><b>Scrape.</b> Run three pages, then export CSV. Show 18 rows.</div></li>
+        </ol>
+
+        <aside class="aside-note">
+          <b>Why this page is a good test</b>
+          Every card has a stable class, a shared parent, a real link and a real image. The pager is a genuine <span class="code-inline">&lt;a href&gt;</span> until the last page — at which point the next control disappears, so the scraper has to stop on its own.
+          <br><br>
+          The table page is the control case: no pagination, fixed rows, one field per cell. If a scrape fails there, the selector is wrong, not the site.
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Paper &amp; Pine — a fictional shop. No real books or payments.</span>
+    <span><a href="shop.html">Shop</a> · <a href="table.html">Library</a> · <a href="loadmore.html">New arrivals</a></span>
+  </footer>
+
+  <script src="demo.js"></script>
+</body>
+</html>
