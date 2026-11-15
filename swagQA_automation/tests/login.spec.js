@@ -1,6 +1,7 @@
 const {test, expect} = require('@playwright/test');
 const users = require('../data/users');
 const LoginPage = require('../pages/loginPage');
+const constraints = require('../data/contrains');
 
 let loginPage;
 
@@ -11,10 +12,9 @@ test.beforeEach(async ({ page }) => {
 
 test('Login with valid credentials', async ({ page }) => {
     await page.goto('/');
-    await page.getByPlaceholder('Username').fill(users.standardUser.userName);
-    await page.getByPlaceholder('Password').fill(users.standardUser.password);
-    await page.getByRole('button', { name: 'Login' }).click();
 
-    await expect(page).toHaveURL('/inventory.html');
-    await expect(page.locator('.title')).toHaveText('Products');
+    await loginPage.login();
+
+    await expect(page).toHaveURL(constraints.urls.inventory);
+    await expect(page.locator('.title')).toHaveText(constraints.productTitle);
 });

@@ -1,3 +1,4 @@
+const users = require('../data/users');
 class LoginPage {
     constructor(page) {
         this.page = page;
