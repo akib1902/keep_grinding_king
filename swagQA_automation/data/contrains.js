@@ -3,5 +3,9 @@ module.exports = {
         login: '/',
         inventory: '/inventory.html',
     },
-    productTitle: 'Products',
+    text: {
+        productTitle: 'Products',
+        sauceLabsBackpack: 'Sauce Labs Backpack',
+        sauceLabBikelightText: 'Sauce Labs Bike Light',
+    }
 }
