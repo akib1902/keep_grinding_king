@@ -15,7 +15,13 @@ module.exports = {
         priceAsc: 'Price (low to high)',
         priceDesc: 'Price (high to low)',
     },
-    checkOutData: {
+    // checkOutData: {
+    //     firstName: 'John',
+    //     lastName: 'Doe',
+    //     postalCode: '12345',
+    // }
+
+    checkout: {
         firstName: 'John',
         lastName: 'Doe',
         postalCode: '12345',

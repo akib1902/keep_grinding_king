@@ -1,8 +1,9 @@
 const {test, expect} = require('@playwright/test');
 const users = require('../data/users');
-const LoginPage = require('../pages/loginPage');
+const {LoginPage} = require('../pages/loginPage');
 const constants = require('../data/constants');
 
+/**@type {LoginPage} */
 let loginPage;
 
 test.beforeEach(async ({ page }) => {
