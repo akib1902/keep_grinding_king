@@ -1,7 +1,7 @@
 const {test, expect} = require('@playwright/test');
 const users = require('../data/users');
 const LoginPage = require('../pages/loginPage');
-const constraints = require('../data/contrains');
+const constants = require('../data/constants');
 
 let loginPage;
 
@@ -15,6 +15,6 @@ test('Login with valid credentials', async ({ page }) => {
 
     await loginPage.login();
 
-    await expect(page).toHaveURL(constraints.urls.inventory);
-    await expect(page.locator('.title')).toHaveText(constraints.productTitle);
+    await expect(page).toHaveURL(constants.urls.inventory);
+    await expect(page.locator('.title')).toHaveText(constants.text.productTitle);
 });
