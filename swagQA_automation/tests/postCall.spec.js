@@ -1,5 +1,7 @@
 import {test, expect} from '@playwright/test';
 
+
+// Test to make a POST call with token and bookID
 test('post call example with token and bookID', async ({request}) => {
     const authData = {
         username: 'testuser',
@@ -13,6 +15,9 @@ test('post call example with token and bookID', async ({request}) => {
     expect(responseData.token).not.toBeNull();
 });
 
+
+
+// Test to console log the JSON response and token
 test('console json and token', async ({request}) => {
     const bookId = {
     "firstname" : "Jim",
@@ -32,3 +37,6 @@ test('console json and token', async ({request}) => {
     const responseData = await response.json();
     console.log(responseData);
 });
+
+
+
